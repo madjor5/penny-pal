@@ -212,16 +212,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
 
+        case 'latest_receipt':
+          if (responseData.length > 0) {
+            const total = responseData.reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.itemAmount)), 0);
+            const searchTerm = query.parameters.searchTerm;
+            responseMessage = `Here's your latest receipt from ${searchTerm}. Total: $${total.toFixed(2)} for ${responseData.length} item${responseData.length > 1 ? 's' : ''}.`;
+            
+            // Show all items from the latest receipt
+            const items = responseData.map((item: any) => 
+              `• ${item.itemDescription}: $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}`
+            );
+            responseMessage += "\n\nItems purchased:\n" + items.join("\n");
+            
+            suggestions = ["View all receipts from this store", "Compare with previous visits", "Set budget alerts"];
+          } else {
+            const searchTerm = query.parameters.searchTerm;
+            responseMessage = `No recent receipts found for "${searchTerm}". Try different search terms or check your transaction history.`;
+            suggestions = ["Try a different store name", "View all recent transactions", "Check your purchase history"];
+          }
+          break;
+
         default:
           // For general queries, show account overview
           const totalBalance = responseData.reduce((sum: number, acc: any) => {
-            const balance = parseFloat(acc.balance);
-            return acc.type === 'expenses' ? sum - Math.abs(balance) : sum + balance;
+            const balance = parseFloat(acc.balance) || 0;
+            // For expense accounts, the balance is already negative, so add it as is
+            // For other accounts, add the positive balance
+            return sum + balance;
           }, 0);
           responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
-          responseMessage += responseData.map((acc: any) => 
-            `${acc.name}: $${Math.abs(parseFloat(acc.balance)).toFixed(2)}`
-          ).join(", ");
+          responseMessage += responseData.map((acc: any) => {
+            const balance = parseFloat(acc.balance) || 0;
+            return `${acc.name}: $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
+          }).join(", ");
           suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
       }
 

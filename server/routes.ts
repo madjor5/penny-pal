@@ -228,11 +228,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const searchTerm = query.parameters.searchTerm;
             
             if (query.parameters.isLatest) {
-              // For "last time" queries, show just the most recent item with transaction context
+              // For "last time" queries, show the most recent item with full receipt context
               const item = responseData[0];
               const itemDate = new Date(item.createdAt).toLocaleDateString();
-              responseMessage = `Last time you bought "${searchTerm}" was on ${itemDate}. You purchased ${item.itemDescription} for $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}.`;
-              suggestions = ["View full receipt from this transaction", "Search for all purchases of this item", "Set budget alert for this category"];
+              
+              // Get the full receipt from this transaction
+              const fullReceipt = await storage.getReceiptItems(item.transactionId);
+              const receiptTotal = fullReceipt.reduce((sum: number, receiptItem: any) => sum + Math.abs(parseFloat(receiptItem.itemAmount)), 0);
+              
+              responseMessage = `Last time you bought "${searchTerm}" was on ${itemDate}. You purchased ${item.itemDescription} for $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}.\n\nHere's your full receipt from that transaction:\n\n`;
+              
+              // Format as classical paper receipt
+              const receiptWidth = 32;
+              const centerText = (text: string) => {
+                const padding = Math.max(0, receiptWidth - text.length);
+                const leftPad = Math.floor(padding / 2);
+                return ' '.repeat(leftPad) + text;
+              };
+              
+              const rightAlign = (left: string, right: string) => {
+                const maxLeft = receiptWidth - right.length - 1;
+                const truncatedLeft = left.length > maxLeft ? left.substring(0, maxLeft - 3) + '...' : left;
+                const spaces = receiptWidth - truncatedLeft.length - right.length;
+                return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
+              };
+              
+              responseMessage += "```\n";
+              responseMessage += centerText("RECEIPT") + "\n";
+              responseMessage += "=".repeat(receiptWidth) + "\n";
+              responseMessage += centerText(itemDate) + "\n";
+              responseMessage += "-".repeat(receiptWidth) + "\n\n";
+              
+              // Items (highlight the searched item)
+              fullReceipt.forEach((receiptItem: any) => {
+                const price = `$${Math.abs(parseFloat(receiptItem.itemAmount)).toFixed(2)}`;
+                const itemLine = rightAlign(receiptItem.itemDescription, price);
+                if (receiptItem.id === item.id) {
+                  responseMessage += ">>> " + itemLine + " <<<\n"; // Highlight the searched item
+                } else {
+                  responseMessage += itemLine + "\n";
+                }
+              });
+              
+              responseMessage += "\n" + "-".repeat(receiptWidth) + "\n";
+              responseMessage += rightAlign("TOTAL", `$${receiptTotal.toFixed(2)}`) + "\n";
+              responseMessage += "=".repeat(receiptWidth) + "\n";
+              responseMessage += centerText(`${fullReceipt.length} ITEM${fullReceipt.length > 1 ? 'S' : ''}`) + "\n";
+              responseMessage += "```";
+              
+              suggestions = ["Search for all purchases of this item", "View spending trends for this category", "Set budget alert for this category"];
             } else {
               responseMessage = `Found ${responseData.length} item${responseData.length > 1 ? 's' : ''} matching "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
               

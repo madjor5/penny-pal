@@ -9,22 +9,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat endpoint
   app.post("/api/chat", async (req, res) => {
     try {
-      const { message } = req.body;
+      const { message, debug = false } = req.body;
       
       if (!message) {
         return res.status(400).json({ error: "Message is required" });
       }
 
+      let debugInfo: any = {};
+      
+      if (debug) {
+        debugInfo.userMessage = message;
+        debugInfo.timestamp = new Date().toISOString();
+      }
+
       // Parse the user's financial query
       const query = await parseFinancialQuery(message);
+      
+      if (debug) {
+        debugInfo.openaiQuery = {
+          request: `Parse financial query: "${message}"`,
+          response: query
+        };
+      }
       
       let responseData: any = null;
       let contextData: any = null;
 
       // Execute the appropriate query based on the parsed intent
+      let dbQueries: string[] = [];
+      
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category) {
+            if (debug) dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
@@ -34,39 +51,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range:', query.parameters.dateRange);
+                if (debug) dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
                 responseData = await storage.getTransactions(undefined, 20);
               } else {
+                if (debug) dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);
                 responseData = await storage.getTransactionsByDateRange(startDate, endDate);
               }
             } catch (error) {
               console.error('Date parsing error:', error);
+              if (debug) dbQueries.push(`getTransactions(undefined, 20) - fallback due to date parsing error`);
               responseData = await storage.getTransactions(undefined, 20);
             }
           } else {
+            if (debug) dbQueries.push(`getTransactions(undefined, 20)`);
             responseData = await storage.getTransactions(undefined, 20);
           }
           break;
 
         case 'budget':
+          if (debug) dbQueries.push(`getBudgets()`);
           responseData = await storage.getBudgets();
           // Get spending data for budget comparison
+          if (debug) dbQueries.push(`getSpendingByCategory()`);
           contextData = await storage.getSpendingByCategory();
           break;
 
         case 'goals':
+          if (debug) dbQueries.push(`getSavingsGoals()`);
           responseData = await storage.getSavingsGoals();
           break;
 
         case 'analysis':
           if (query.parameters.category) {
+            if (debug) dbQueries.push(`getSpendingByCategory()`);
             responseData = await storage.getSpendingByCategory();
           } else {
+            if (debug) dbQueries.push(`getMonthlySpending()`);
             responseData = await storage.getMonthlySpending();
           }
           break;
 
         case 'semantic_search':
           if (query.parameters.searchTerm) {
+            if (debug) dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
             responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
           } else {
             responseData = [];
@@ -75,12 +102,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         default:
           // For general queries, get account overview
+          if (debug) dbQueries.push(`getAccounts()`);
           responseData = await storage.getAccounts();
+      }
+      
+      if (debug) {
+        debugInfo.databaseQueries = dbQueries;
+        debugInfo.queryResults = {
+          count: Array.isArray(responseData) ? responseData.length : (responseData ? 1 : 0),
+          data: responseData
+        };
       }
 
       // Generate response server-side based on query type
       let responseMessage = "";
       let suggestions: string[] = [];
+      
+      if (debug) {
+        debugInfo.responseGeneration = {
+          queryType: query.queryType,
+          parameters: query.parameters
+        };
+      }
 
       switch (query.queryType) {
         case 'transactions':
@@ -192,11 +235,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         queryData: { query, data: responseData }
       });
 
-      res.json({
+      const response: any = {
         message: responseMessage,
         data: responseData,
         suggestions
-      });
+      };
+      
+      if (debug) {
+        response.debug = debugInfo;
+      }
+      
+      res.json(response);
 
     } catch (error) {
       console.error('Chat error:', error);

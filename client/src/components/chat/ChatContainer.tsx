@@ -39,19 +39,22 @@ export default function ChatContainer({ isProcessing = false }: ChatContainerPro
           />
 
           {/* Account Summary Card */}
-          {!accountsLoading && accounts && (
+          {!accountsLoading && accounts && Array.isArray(accounts) && 
             <AccountSummary accounts={accounts as Account[]} />
-          )}
+          }
 
           {/* Chat History */}
-          {!chatLoading && chatHistory && Array.isArray(chatHistory) && chatHistory.map((msg: any, index: number) => (
-            <MessageBubble
-              key={msg.id || index}
-              message={msg.message}
-              isUser={msg.isUser}
-              data={msg.queryData?.data}
-            />
-          ))}
+          {!chatLoading && chatHistory && Array.isArray(chatHistory) && 
+            chatHistory.map((msg: any, index: number) => (
+              <MessageBubble
+                key={msg.id || index}
+                message={msg.message}
+                isUser={msg.isUser}
+                data={msg.queryData?.data}
+                debug={msg.debug}
+              />
+            ))
+          }
           
           {/* Typing Indicator */}
           {isProcessing && (

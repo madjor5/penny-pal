@@ -7,9 +7,10 @@ interface MessageBubbleProps {
   isUser: boolean;
   isWelcome?: boolean;
   data?: any;
+  debug?: any;
 }
 
-export default function MessageBubble({ message, isUser, isWelcome = false, data }: MessageBubbleProps) {
+export default function MessageBubble({ message, isUser, isWelcome = false, data, debug }: MessageBubbleProps) {
   if (isUser) {
     return (
       <div className="flex justify-end">
@@ -43,6 +44,42 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
               <SavingsGoals goals={data} data-testid="savings-goals" />
             )}
           </>
+        )}
+        
+        {/* Debug Information */}
+        {debug && (
+          <div className="bg-gray-100 rounded-lg p-3 mt-2 text-xs font-mono">
+            <details>
+              <summary className="cursor-pointer font-semibold text-gray-700">Debug Info</summary>
+              <div className="mt-2 space-y-2">
+                {debug.databaseQueries && (
+                  <div>
+                    <div className="font-semibold text-blue-700">Database Queries:</div>
+                    <ul className="list-disc list-inside text-gray-600">
+                      {debug.databaseQueries.map((query: string, index: number) => (
+                        <li key={index}>{query}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {debug.openaiQuery && (
+                  <div>
+                    <div className="font-semibold text-green-700">OpenAI Request:</div>
+                    <div className="text-gray-600">Request: {debug.openaiQuery.request}</div>
+                    <div className="text-gray-600">Response: {JSON.stringify(debug.openaiQuery.response, null, 2)}</div>
+                  </div>
+                )}
+                
+                {debug.queryResults && (
+                  <div>
+                    <div className="font-semibold text-purple-700">Query Results:</div>
+                    <div className="text-gray-600">Count: {debug.queryResults.count}</div>
+                  </div>
+                )}
+              </div>
+            </details>
+          </div>
         )}
       </div>
     </div>

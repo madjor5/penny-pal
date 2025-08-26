@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Send, Mic, Zap } from "lucide-react";
+import { Send, Mic, Zap, Bug } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ChatInputProps {
@@ -14,6 +14,7 @@ interface ChatInputProps {
 export default function ChatInput({ message, setMessage, onToggleQuickActions, onProcessingChange }: ChatInputProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [debugMode, setDebugMode] = useState(false);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -30,7 +31,7 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         [...(old || []), tempUserMessage]
       );
 
-      const response = await apiRequest('POST', '/api/chat', { message });
+      const response = await apiRequest('POST', '/api/chat', { message, debug: debugMode });
       const responseData = await response.json();
       return responseData;
     },
@@ -81,6 +82,17 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
           data-testid="button-quick-actions"
         >
           <Zap className="text-gray-600" size={16} />
+        </button>
+
+        <button 
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+            debugMode ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+          onClick={() => setDebugMode(!debugMode)}
+          data-testid="button-debug-toggle"
+          title={debugMode ? "Debug mode ON" : "Debug mode OFF"}
+        >
+          <Bug size={16} />
         </button>
         
         <div className="flex-1 relative">

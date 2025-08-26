@@ -7,9 +7,10 @@ import { Account } from "@shared/schema";
 
 interface ChatContainerProps {
   isProcessing?: boolean;
+  debugMode?: boolean;
 }
 
-export default function ChatContainer({ isProcessing = false }: ChatContainerProps) {
+export default function ChatContainer({ isProcessing = false, debugMode = false }: ChatContainerProps) {
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ['/api/accounts'],
   });
@@ -51,7 +52,7 @@ export default function ChatContainer({ isProcessing = false }: ChatContainerPro
                 message={msg.message}
                 isUser={msg.isUser}
                 data={msg.queryData?.data}
-                debug={msg.queryData?.debug}
+                debug={debugMode ? msg.queryData?.debug : undefined}
               />
             ))
           }

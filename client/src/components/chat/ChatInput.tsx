@@ -9,12 +9,13 @@ interface ChatInputProps {
   setMessage: (message: string) => void;
   onToggleQuickActions: () => void;
   onProcessingChange?: (isProcessing: boolean) => void;
+  debugMode: boolean;
+  setDebugMode: (debug: boolean) => void;
 }
 
-export default function ChatInput({ message, setMessage, onToggleQuickActions, onProcessingChange }: ChatInputProps) {
+export default function ChatInput({ message, setMessage, onToggleQuickActions, onProcessingChange, debugMode, setDebugMode }: ChatInputProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [debugMode, setDebugMode] = useState(false);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -52,10 +53,8 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         [...(old || []), aiMessage]
       );
       
-      // Only invalidate if we don't have debug info, otherwise keep local cache
-      if (!data.debug) {
-        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
-      }
+      // Always invalidate to ensure consistency with server
+      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
       
       setMessage('');
       onProcessingChange?.(false);

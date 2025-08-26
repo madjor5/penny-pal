@@ -15,6 +15,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Message is required" });
       }
 
+      // Check if the user wants to clear the chat
+      const clearChatPhrases = [
+        'clear the chat',
+        'clear chat',
+        'clear conversation',
+        'delete chat history',
+        'reset chat',
+        'start fresh',
+        'new conversation'
+      ];
+      
+      const messageText = message.toLowerCase().trim();
+      const shouldClearChat = clearChatPhrases.some(phrase => messageText.includes(phrase));
+      
+      if (shouldClearChat) {
+        // Store the user's clear request message
+        await storage.createChatMessage({
+          message,
+          response: null,
+          isUser: true,
+          queryData: null,
+        });
+        
+        // Clear all chat history
+        await storage.clearChatMessages();
+        
+        // Return a confirmation response
+        return res.json({
+          message: "Chat history has been cleared! We're starting fresh with a clean conversation.",
+          data: null,
+          debug: debug ? { userMessage: message, action: "chat_cleared" } : null
+        });
+      }
+
       // Always capture debug info regardless of debug flag
       let debugInfo: any = {
         userMessage: message,
@@ -598,6 +632,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(messages);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch chat history" });
+    }
+  });
+
+  // Clear chat history
+  app.delete("/api/chat/history", async (req, res) => {
+    try {
+      await storage.clearChatMessages();
+      res.json({ success: true, message: "Chat history cleared successfully" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to clear chat history" });
     }
   });
 

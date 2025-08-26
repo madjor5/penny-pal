@@ -28,13 +28,36 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
       </div>
       <div className="space-y-3 max-w-xs">
         <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
-          {message.startsWith('```') && message.includes('RECEIPT') ? (
-            <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-              {message.replace(/```/g, '')}
-            </pre>
-          ) : (
-            <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>
-          )}
+{(() => {
+            // Check if message contains a receipt code block
+            const receiptMatch = message.match(/^(.*?)(```[\s\S]*?RECEIPT[\s\S]*?```)(.*)$/);
+            
+            if (receiptMatch) {
+              const [, beforeReceipt, receiptBlock, afterReceipt] = receiptMatch;
+              return (
+                <div className="space-y-3">
+                  {beforeReceipt.trim() && (
+                    <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
+                  )}
+                  <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                    {receiptBlock.replace(/```/g, '')}
+                  </pre>
+                  {afterReceipt.trim() && (
+                    <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
+                  )}
+                </div>
+              );
+            } else if (message.startsWith('```') && message.includes('RECEIPT')) {
+              // Legacy handling for receipt-only messages
+              return (
+                <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                  {message.replace(/```/g, '')}
+                </pre>
+              );
+            } else {
+              return <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>;
+            }
+          })()}
         </div>
         
         {/* Render data cards based on content */}

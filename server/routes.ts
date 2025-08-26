@@ -90,8 +90,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'semantic_search':
           if (query.parameters.searchTerm) {
-            dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
-            responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
+            // Use store-based search for queries about specific stores/merchants
+            dbQueries.push(`searchReceiptItemsByStore('${query.parameters.searchTerm}')`);
+            responseData = await storage.searchReceiptItemsByStore(query.parameters.searchTerm);
           } else {
             responseData = [];
           }

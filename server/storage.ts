@@ -19,7 +19,7 @@ import {
   type InsertReceiptItem
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, gte, lte, and, sum, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sum, sql, inArray } from "drizzle-orm";
 import { generateEmbedding, cosineSimilarity } from "./openai";
 
 export interface IStorage {
@@ -55,6 +55,7 @@ export interface IStorage {
   getReceiptItems(transactionId?: string): Promise<ReceiptItem[]>;
   createReceiptItem(item: InsertReceiptItem): Promise<ReceiptItem>;
   searchReceiptItemsBySemantic(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
+  searchReceiptItemsByStore(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
 
   // Analytics
   getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
@@ -343,6 +344,26 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b.similarity - a.similarity);
 
     return similarTransactions;
+  }
+
+  // Search receipt items by first finding transactions at specific stores/merchants
+  async searchReceiptItemsByStore(searchTerm: string, threshold: number = 0.7): Promise<ReceiptItem[]> {
+    // First find transactions that match the store/merchant
+    const matchingTransactions = await this.searchTransactionsBySemantic(searchTerm, threshold);
+    
+    if (matchingTransactions.length === 0) {
+      return [];
+    }
+
+    // Get all receipt items from those transactions
+    const transactionIds = matchingTransactions.map(t => t.id);
+    const receiptItemsFromStoreTransactions = await db
+      .select()
+      .from(receiptItems)
+      .where(inArray(receiptItems.transactionId, transactionIds))
+      .orderBy(receiptItems.createdAt);
+
+    return receiptItemsFromStoreTransactions;
   }
 }
 

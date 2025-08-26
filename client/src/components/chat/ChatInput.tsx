@@ -52,7 +52,11 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         [...(old || []), aiMessage]
       );
       
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+      // Only invalidate if we don't have debug info, otherwise keep local cache
+      if (!data.debug) {
+        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+      }
+      
       setMessage('');
       onProcessingChange?.(false);
     },

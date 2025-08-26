@@ -49,15 +49,15 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
         {/* Debug Information */}
         {debug && (
           <div className="bg-gray-100 rounded-lg p-3 mt-2 text-xs font-mono">
-            <details>
-              <summary className="cursor-pointer font-semibold text-gray-700">Debug Info</summary>
-              <div className="mt-2 space-y-2">
-                {debug.databaseQueries && (
+            <details open>
+              <summary className="cursor-pointer font-semibold text-gray-700 mb-2">🐛 Debug Info</summary>
+              <div className="mt-2 space-y-3">
+                {debug.databaseQueries && debug.databaseQueries.length > 0 && (
                   <div>
-                    <div className="font-semibold text-blue-700">Database Queries:</div>
-                    <ul className="list-disc list-inside text-gray-600">
+                    <div className="font-semibold text-blue-700">📊 Database Queries:</div>
+                    <ul className="list-disc list-inside text-gray-600 ml-2">
                       {debug.databaseQueries.map((query: string, index: number) => (
-                        <li key={index}>{query}</li>
+                        <li key={index} className="break-all">{query}</li>
                       ))}
                     </ul>
                   </div>
@@ -65,16 +65,28 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
                 
                 {debug.openaiQuery && (
                   <div>
-                    <div className="font-semibold text-green-700">OpenAI Request:</div>
-                    <div className="text-gray-600">Request: {debug.openaiQuery.request}</div>
-                    <div className="text-gray-600">Response: {JSON.stringify(debug.openaiQuery.response, null, 2)}</div>
+                    <div className="font-semibold text-green-700">🤖 OpenAI Request:</div>
+                    <div className="text-gray-600 ml-2">
+                      <div><strong>Request:</strong> {debug.openaiQuery.request}</div>
+                      <div><strong>Response:</strong></div>
+                      <pre className="text-xs bg-white p-2 rounded mt-1 overflow-x-auto">
+                        {JSON.stringify(debug.openaiQuery.response, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 )}
                 
                 {debug.queryResults && (
                   <div>
-                    <div className="font-semibold text-purple-700">Query Results:</div>
-                    <div className="text-gray-600">Count: {debug.queryResults.count}</div>
+                    <div className="font-semibold text-purple-700">📈 Query Results:</div>
+                    <div className="text-gray-600 ml-2">Count: {debug.queryResults.count} records</div>
+                  </div>
+                )}
+                
+                {debug.timestamp && (
+                  <div>
+                    <div className="font-semibold text-gray-700">⏰ Timestamp:</div>
+                    <div className="text-gray-600 ml-2">{new Date(debug.timestamp).toLocaleString()}</div>
                   </div>
                 )}
               </div>

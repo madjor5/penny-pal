@@ -103,6 +103,11 @@ export class DatabaseStorage implements IStorage {
     return await query.orderBy(desc(transactions.date)).limit(limit);
   }
 
+  async getTransaction(id: string): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.id, id));
+    return transaction;
+  }
+
   async getTransactionsByDateRange(startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]> {
     let whereCondition = and(
       gte(transactions.date, startDate),

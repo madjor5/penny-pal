@@ -232,11 +232,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const item = responseData[0];
               const itemDate = new Date(item.createdAt).toLocaleDateString();
               
-              // Get the full receipt from this transaction
+              // Get the full receipt from this transaction and transaction details
               const fullReceipt = await storage.getReceiptItems(item.transactionId);
+              const transaction = await storage.getTransaction(item.transactionId);
               const receiptTotal = fullReceipt.reduce((sum: number, receiptItem: any) => sum + Math.abs(parseFloat(receiptItem.itemAmount)), 0);
               
-              responseMessage = `Last time you bought "${searchTerm}" was on ${itemDate}. You purchased ${item.itemDescription} for $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}.\n\nHere's your full receipt from that transaction:\n\n`;
+              const transactionDate = new Date(transaction.date);
+              const storeName = transaction.merchant || "STORE";
+              const receiptDate = transactionDate.toLocaleDateString();
+              const receiptTime = transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              
+              responseMessage = `Last time you bought "${searchTerm}" was on ${receiptDate} at ${storeName}. You purchased ${item.itemDescription} for $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}.\n\nHere's your full receipt from that transaction:\n\n`;
               
               // Format as classical paper receipt
               const receiptWidth = 32;
@@ -254,9 +260,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               };
               
               responseMessage += "```\n";
+              responseMessage += centerText(storeName.toUpperCase()) + "\n";
               responseMessage += centerText("RECEIPT") + "\n";
               responseMessage += "=".repeat(receiptWidth) + "\n";
-              responseMessage += centerText(itemDate) + "\n";
+              responseMessage += centerText(receiptDate) + "\n";
+              responseMessage += centerText(receiptTime) + "\n";
               responseMessage += "-".repeat(receiptWidth) + "\n\n";
               
               // Items (highlight the searched item)

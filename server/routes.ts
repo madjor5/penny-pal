@@ -377,7 +377,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               // Show each receipt that contains school equipment
               let receiptCount = 0;
-              for (const [transactionId, items] of transactionGroups) {
+              for (const transactionId of Array.from(transactionGroups.keys())) {
+                const items = transactionGroups.get(transactionId);
                 receiptCount++;
                 
                 // Get the full receipt and transaction details
@@ -392,9 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const receiptDate = transactionDate.toLocaleDateString();
                 const receiptTime = transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 
-                responseMessage += `**Receipt #${receiptCount} - ${receiptDate} at ${storeName}**\n\n`;
-                
-                // Format as classical paper receipt
+                // Format as classical paper receipt within a styled box
                 const receiptWidth = 32;
                 const centerText = (text: string) => {
                   const padding = Math.max(0, receiptWidth - text.length);
@@ -409,13 +408,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
                 };
                 
-                responseMessage += "```\n";
-                responseMessage += centerText(storeName.toUpperCase()) + "\n";
-                responseMessage += centerText("RECEIPT") + "\n";
-                responseMessage += "=".repeat(receiptWidth) + "\n";
-                responseMessage += centerText(receiptDate) + "\n";
-                responseMessage += centerText(receiptTime) + "\n";
-                responseMessage += "-".repeat(receiptWidth) + "\n\n";
+                let receiptContent = "";
+                receiptContent += centerText(storeName.toUpperCase()) + "\n";
+                receiptContent += centerText("RECEIPT") + "\n";
+                receiptContent += "=".repeat(receiptWidth) + "\n";
+                receiptContent += centerText(receiptDate) + "\n";
+                receiptContent += centerText(receiptTime) + "\n";
+                receiptContent += "-".repeat(receiptWidth) + "\n\n";
                 
                 // Items (highlight the school equipment items)
                 const matchingItemIds = new Set(items.map((item: any) => item.id));
@@ -423,17 +422,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   const price = `$${Math.abs(parseFloat(receiptItem.itemAmount)).toFixed(2)}`;
                   const itemLine = rightAlign(receiptItem.itemDescription, price);
                   if (matchingItemIds.has(receiptItem.id)) {
-                    responseMessage += "**" + itemLine + "**\n"; // Mark school equipment items in bold
+                    receiptContent += "★ " + itemLine + "\n"; // Mark school equipment items with star
                   } else {
-                    responseMessage += itemLine + "\n";
+                    receiptContent += itemLine + "\n";
                   }
                 });
                 
-                responseMessage += "\n" + "-".repeat(receiptWidth) + "\n";
-                responseMessage += rightAlign("TOTAL", `$${receiptTotal.toFixed(2)}`) + "\n";
-                responseMessage += "=".repeat(receiptWidth) + "\n";
-                responseMessage += centerText(`${fullReceipt.length} ITEM${fullReceipt.length > 1 ? 'S' : ''}`) + "\n";
-                responseMessage += "```\n\n";
+                receiptContent += "\n" + "-".repeat(receiptWidth) + "\n";
+                receiptContent += rightAlign("TOTAL", `$${receiptTotal.toFixed(2)}`) + "\n";
+                receiptContent += "=".repeat(receiptWidth) + "\n";
+                receiptContent += centerText(`${fullReceipt.length} ITEM${fullReceipt.length > 1 ? 'S' : ''}`);
+                
+                responseMessage += `<div style="margin-bottom: 20px;"><h4>Receipt #${receiptCount} - ${receiptDate} at ${storeName}</h4><pre style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: 'Courier New', monospace; white-space: pre; overflow-x: auto;">${receiptContent}</pre></div>\n`;
               }
               
               if (receiptCount > 1) {

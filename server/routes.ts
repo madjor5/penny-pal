@@ -40,13 +40,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (query.parameters.category && query.parameters.dateRange) {
             try {
               console.log('DEBUG: dateRange object:', query.parameters.dateRange);
-              console.log('DEBUG: startDate value:', query.parameters.dateRange.startDate);
               console.log('DEBUG: start value:', query.parameters.dateRange.start);
-              console.log('DEBUG: endDate value:', query.parameters.dateRange.endDate);
               console.log('DEBUG: end value:', query.parameters.dateRange.end);
               
-              const startDateValue = query.parameters.dateRange.start || query.parameters.dateRange.startDate;
-              const endDateValue = query.parameters.dateRange.end || query.parameters.dateRange.endDate;
+              const startDateValue = query.parameters.dateRange.start;
+              const endDateValue = query.parameters.dateRange.end;
               console.log('DEBUG: Using startDateValue:', startDateValue);
               console.log('DEBUG: Using endDateValue:', endDateValue);
               
@@ -73,8 +71,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
-              const startDate = new Date(query.parameters.dateRange.start || query.parameters.dateRange.startDate);
-              const endDate = new Date(query.parameters.dateRange.end || query.parameters.dateRange.endDate);
+              const startDate = new Date(query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.end);
               
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -276,6 +274,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Get the full receipt from this transaction and transaction details
               const fullReceipt = await storage.getReceiptItems(item.transactionId);
               const transaction = await storage.getTransaction(item.transactionId);
+              
+              if (!transaction) {
+                responseMessage = `Could not find transaction details for the last purchase of "${searchTerm}".`;
+                break;
+              }
               const receiptTotal = fullReceipt.reduce((sum: number, receiptItem: any) => sum + Math.abs(parseFloat(receiptItem.itemAmount)), 0);
               
               const transactionDate = new Date(transaction.date);

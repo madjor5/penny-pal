@@ -4,6 +4,7 @@ import { Bot } from "lucide-react";
 import MessageBubble from "./MessageBubble";
 import AccountSummary from "@/components/financial/AccountSummary";
 import { Account } from "@shared/schema";
+import type { JSX } from "react";
 
 interface ChatContainerProps {
   isProcessing?: boolean;
@@ -40,22 +41,28 @@ export default function ChatContainer({ isProcessing = false, debugMode = false 
           />
 
           {/* Account Summary Card */}
-          {!accountsLoading && accounts && Array.isArray(accounts) && 
-            <AccountSummary accounts={accounts as Account[]} />
-          }
+          {(() => {
+            if (!accountsLoading && accounts && Array.isArray(accounts)) {
+              return <AccountSummary accounts={accounts as Account[]} />;
+            }
+            return null;
+          })()}
 
           {/* Chat History */}
-          {!chatLoading && chatHistory && Array.isArray(chatHistory) && 
-            chatHistory.map((msg: any, index: number) => (
-              <MessageBubble
-                key={msg.id || index}
-                message={msg.message}
-                isUser={msg.isUser}
-                data={msg.queryData?.data}
-                debug={debugMode ? msg.queryData?.debug : undefined}
-              />
-            ))
-          }
+          {(() => {
+            if (!chatLoading && chatHistory && Array.isArray(chatHistory)) {
+              return chatHistory.map((msg: any, index: number) => (
+                <MessageBubble
+                  key={msg.id || index}
+                  message={msg.message}
+                  isUser={msg.isUser}
+                  data={msg.queryData?.data}
+                  debug={debugMode ? msg.queryData?.debug : undefined}
+                />
+              ));
+            }
+            return null;
+          })()}
           
           {/* Typing Indicator */}
           {isProcessing && (

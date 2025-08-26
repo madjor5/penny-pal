@@ -16,7 +16,7 @@ export default function Home() {
     if (chatContainer) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
-  });
+  }, [isProcessing]); // Run when processing state changes
 
   const handleQuickAction = (question: string) => {
     setMessage(question);

@@ -23,7 +23,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse the user's financial query
       const query = await parseFinancialQuery(message);
-      console.log('Parsed query:', JSON.stringify(query, null, 2));
       
       debugInfo.openaiQuery = {
         request: `Parse financial query: "${message}"`,
@@ -40,17 +39,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case 'transactions':
           if (query.parameters.category && query.parameters.dateRange) {
             try {
-              console.log('Category and date range detected:', query.parameters.category, query.parameters.dateRange);
-              const startDate = new Date(query.parameters.dateRange.start);
-              const endDate = new Date(query.parameters.dateRange.end);
-              console.log('Parsed dates - Start:', startDate, 'End:', endDate);
+              const startDate = new Date(query.parameters.dateRange.startDate || query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.endDate || query.parameters.dateRange.end);
               
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range, falling back to category only:', query.parameters.dateRange);
                 dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to invalid dates`);
                 responseData = await storage.getTransactionsByCategory(query.parameters.category);
               } else {
-                console.log('Using category + date range filter');
                 dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}')`);
                 responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate);
               }
@@ -64,10 +60,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
-              console.log('Date range detected:', query.parameters.dateRange);
-              const startDate = new Date(query.parameters.dateRange.start);
-              const endDate = new Date(query.parameters.dateRange.end);
-              console.log('Parsed dates - Start:', startDate, 'End:', endDate);
+              const startDate = new Date(query.parameters.dateRange.startDate || query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.endDate || query.parameters.dateRange.end);
               
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -75,8 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
                 responseData = await storage.getTransactions(undefined, 20);
               } else {
-                console.log('Using date range filter - transactions found:', (await storage.getTransactionsByDateRange(startDate, endDate)).length);
-                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);
+                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);                
                 responseData = await storage.getTransactionsByDateRange(startDate, endDate);
               }
             } catch (error) {

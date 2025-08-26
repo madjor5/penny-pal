@@ -28,7 +28,13 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
       </div>
       <div className="space-y-3 max-w-xs">
         <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>
+          {message.startsWith('```') && message.includes('RECEIPT') ? (
+            <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+              {message.replace(/```/g, '')}
+            </pre>
+          ) : (
+            <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>
+          )}
         </div>
         
         {/* Render data cards based on content */}

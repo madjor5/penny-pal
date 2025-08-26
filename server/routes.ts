@@ -233,7 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             };
             
             responseMessage = "```\n";
-            responseMessage += centerText(searchTerm.toUpperCase()) + "\n";
+            responseMessage += centerText((searchTerm || "STORE").toUpperCase()) + "\n";
             responseMessage += centerText("RECEIPT") + "\n";
             responseMessage += "=".repeat(receiptWidth) + "\n";
             responseMessage += centerText(new Date().toLocaleDateString()) + "\n";

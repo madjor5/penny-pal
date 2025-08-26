@@ -16,14 +16,11 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions }:
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      console.log('ChatInput - Sending message:', message);
       const response = await apiRequest('POST', '/api/chat', { message });
       const responseData = await response.json();
-      console.log('ChatInput - API response:', responseData);
       return responseData;
     },
     onSuccess: (data) => {
-      console.log('ChatInput - onSuccess, invalidating cache');
       queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
       setMessage('');
     },

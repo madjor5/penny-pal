@@ -13,11 +13,6 @@ export default function ChatContainer() {
     queryKey: ['/api/chat/history'],
   });
 
-  // Debug logging
-  console.log('ChatContainer - chatHistory:', chatHistory);
-  console.log('ChatContainer - isLoading:', chatLoading);
-  console.log('ChatContainer - chatHistory type:', typeof chatHistory);
-  console.log('ChatContainer - chatHistory isArray:', Array.isArray(chatHistory));
 
   useEffect(() => {
     const chatContainer = document.getElementById('chatContainer');

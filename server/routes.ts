@@ -27,9 +27,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (query.parameters.category) {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
-            const startDate = new Date(query.parameters.dateRange.start);
-            const endDate = new Date(query.parameters.dateRange.end);
-            responseData = await storage.getTransactionsByDateRange(startDate, endDate);
+            try {
+              const startDate = new Date(query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.end);
+              
+              // Validate dates
+              if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                console.error('Invalid date range:', query.parameters.dateRange);
+                responseData = await storage.getTransactions(undefined, 20);
+              } else {
+                responseData = await storage.getTransactionsByDateRange(startDate, endDate);
+              }
+            } catch (error) {
+              console.error('Date parsing error:', error);
+              responseData = await storage.getTransactions(undefined, 20);
+            }
           } else {
             responseData = await storage.getTransactions(undefined, 20);
           }
@@ -62,24 +74,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const aiResponse = await generateFinancialResponse(query, responseData, JSON.stringify(contextData));
 
       // Save the user message
-      console.log('Saving user message:', message);
-      const userMessage = await storage.createChatMessage({
+      await storage.createChatMessage({
         message,
         response: null,
         isUser: true,
         queryData: null
       });
-      console.log('User message saved:', userMessage);
 
       // Save the AI response
-      console.log('Saving AI response:', aiResponse.answer);
-      const aiMessage = await storage.createChatMessage({
+      await storage.createChatMessage({
         message: aiResponse.answer,
         response: null,
         isUser: false,
         queryData: { query, data: responseData }
       });
-      console.log('AI message saved:', aiMessage);
 
       res.json({
         message: aiResponse.answer,

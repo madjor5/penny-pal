@@ -19,7 +19,28 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      // Immediately add user message to cache (optimistic update)
+      // Check if this is a clear chat message
+      const clearChatPhrases = [
+        'clear the chat',
+        'clear chat', 
+        'clear conversation',
+        'delete chat history',
+        'reset chat',
+        'start fresh',
+        'new conversation'
+      ];
+      
+      const messageText = message.toLowerCase().trim();
+      const shouldClearChat = clearChatPhrases.some(phrase => messageText.includes(phrase));
+      
+      if (shouldClearChat) {
+        // Don't add optimistic update for clear messages, just send the request
+        const response = await apiRequest('POST', '/api/chat', { message, debug: debugMode });
+        const responseData = await response.json();
+        return { ...responseData, isClearMessage: true };
+      }
+
+      // For regular messages, add optimistic update
       const tempUserMessage = {
         id: `temp-${Date.now()}`,
         message,
@@ -37,21 +58,37 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
       return responseData;
     },
     onSuccess: (data) => {
-      // Add the AI response with debug info to cache
-      const aiMessage = {
-        id: `ai-${Date.now()}`,
-        message: data.message,
-        isUser: false,
-        queryData: { 
-          data: data.data,
-          debug: data.debug 
-        },
-        createdAt: new Date().toISOString()
-      };
-      
-      queryClient.setQueryData(['/api/chat/history'], (old: any) => 
-        [...(old || []), aiMessage]
-      );
+      if (data.isClearMessage) {
+        // For clear messages, clear the cache and add only the AI confirmation
+        queryClient.setQueryData(['/api/chat/history'], []);
+        const confirmationMessage = {
+          id: `ai-${Date.now()}`,
+          message: data.message,
+          isUser: false,
+          queryData: { 
+            data: data.data,
+            debug: data.debug 
+          },
+          createdAt: new Date().toISOString()
+        };
+        queryClient.setQueryData(['/api/chat/history'], [confirmationMessage]);
+      } else {
+        // For regular messages, add the AI response
+        const aiMessage = {
+          id: `ai-${Date.now()}`,
+          message: data.message,
+          isUser: false,
+          queryData: { 
+            data: data.data,
+            debug: data.debug 
+          },
+          createdAt: new Date().toISOString()
+        };
+        
+        queryClient.setQueryData(['/api/chat/history'], (old: any) => 
+          [...(old || []), aiMessage]
+        );
+      }
       
       // Always invalidate to ensure consistency with server
       queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });

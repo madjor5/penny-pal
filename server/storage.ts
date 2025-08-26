@@ -51,6 +51,7 @@ export interface IStorage {
   // Chat Messages
   getChatMessages(limit?: number): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+  clearChatMessages(): Promise<void>;
 
   // Receipt Items
   getReceiptItems(transactionId?: string): Promise<ReceiptItem[]>;
@@ -252,6 +253,10 @@ export class DatabaseStorage implements IStorage {
       .values(insertMessage)
       .returning();
     return message;
+  }
+
+  async clearChatMessages(): Promise<void> {
+    await db.delete(chatMessages);
   }
 
   // Analytics

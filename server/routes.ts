@@ -7,17 +7,6 @@ import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Chat endpoint
-  // Helper endpoint to generate missing embeddings
-  app.post("/api/generate-embeddings", async (req, res) => {
-    try {
-      await storage.generateMissingEmbeddings();
-      res.json({ message: "Embeddings generated successfully" });
-    } catch (error) {
-      console.error('Error generating embeddings:', error);
-      res.status(500).json({ error: "Failed to generate embeddings" });
-    }
-  });
-
   app.post("/api/chat", async (req, res) => {
     try {
       const { message } = req.body;

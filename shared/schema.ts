@@ -21,6 +21,7 @@ export const transactions = pgTable("transactions", {
   merchant: text("merchant"),
   date: timestamp("date").notNull(),
   receiptData: json("receipt_data"), // Store receipt line items
+  embedding: real("embedding").array(), // Store OpenAI embedding vector for transaction
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -132,9 +132,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    // Generate embedding for the transaction description
+    const embedding = await generateEmbedding(`${insertTransaction.description} ${insertTransaction.category || ''} ${insertTransaction.merchant || ''}`);
+    
     const [transaction] = await db
       .insert(transactions)
-      .values(insertTransaction)
+      .values({
+        ...insertTransaction,
+        embedding: embedding
+      })
       .returning();
     return transaction;
   }
@@ -316,31 +322,27 @@ export class DatabaseStorage implements IStorage {
     return similarItems;
   }
 
-  // Generate embeddings for all receipt items that don't have them
-  async generateMissingEmbeddings(): Promise<void> {
-    console.log('🔄 Generating missing embeddings for receipt items...');
-    const itemsWithoutEmbeddings = await db.select()
-      .from(receiptItems)
-      .where(sql`${receiptItems.embedding} IS NULL`);
-
-    console.log(`Found ${itemsWithoutEmbeddings.length} items without embeddings`);
-
-    for (const item of itemsWithoutEmbeddings) {
-      try {
-        console.log(`Generating embedding for: ${item.itemDescription}`);
-        const embedding = await generateEmbedding(item.itemDescription);
-        
-        await db.update(receiptItems)
-          .set({ embedding: embedding })
-          .where(eq(receiptItems.id, item.id));
-          
-        console.log(`✅ Updated embedding for: ${item.itemDescription}`);
-      } catch (error) {
-        console.error(`❌ Failed to generate embedding for: ${item.itemDescription}`, error);
-      }
-    }
+  // Search transactions by semantic similarity
+  async searchTransactionsBySemantic(searchTerm: string, threshold: number = 0.7): Promise<Transaction[]> {
+    // Generate embedding for search term
+    const searchEmbedding = await generateEmbedding(searchTerm);
     
-    console.log('🎉 Finished generating embeddings!');
+    if (searchEmbedding.length === 0) {
+      return [];
+    }
+
+    // Get all transactions and calculate similarity
+    const allTransactions = await db.select().from(transactions);
+    
+    const similarTransactions = allTransactions
+      .map(transaction => ({
+        ...transaction,
+        similarity: transaction.embedding ? cosineSimilarity(searchEmbedding, transaction.embedding) : 0
+      }))
+      .filter(transaction => transaction.similarity >= threshold)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    return similarTransactions;
   }
 }
 

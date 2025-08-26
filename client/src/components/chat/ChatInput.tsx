@@ -36,6 +36,22 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
       return responseData;
     },
     onSuccess: (data) => {
+      // Add the AI response with debug info to cache
+      const aiMessage = {
+        id: `ai-${Date.now()}`,
+        message: data.message,
+        isUser: false,
+        queryData: { 
+          data: data.data,
+          debug: data.debug 
+        },
+        createdAt: new Date().toISOString()
+      };
+      
+      queryClient.setQueryData(['/api/chat/history'], (old: any) => 
+        [...(old || []), aiMessage]
+      );
+      
       queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
       setMessage('');
       onProcessingChange?.(false);

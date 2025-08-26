@@ -51,7 +51,7 @@ export default function ChatContainer({ isProcessing = false }: ChatContainerPro
                 message={msg.message}
                 isUser={msg.isUser}
                 data={msg.queryData?.data}
-                debug={msg.debug}
+                debug={msg.queryData?.debug}
               />
             ))
           }

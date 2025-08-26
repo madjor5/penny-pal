@@ -227,12 +227,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         queryData: null
       });
 
-      // Save the AI response
+      // Save the AI response with debug info
+      const chatMessageData: any = { query, data: responseData };
+      if (debug) {
+        chatMessageData.debug = debugInfo;
+      }
+      
       await storage.createChatMessage({
         message: responseMessage,
         response: null,
         isUser: false,
-        queryData: { query, data: responseData }
+        queryData: chatMessageData
       });
 
       const response: any = {

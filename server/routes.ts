@@ -216,13 +216,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (responseData.length > 0) {
             const total = responseData.reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.itemAmount)), 0);
             const searchTerm = query.parameters.searchTerm;
-            responseMessage = `Here's your latest receipt from ${searchTerm}. Total: $${total.toFixed(2)} for ${responseData.length} item${responseData.length > 1 ? 's' : ''}.`;
             
-            // Show all items from the latest receipt
-            const items = responseData.map((item: any) => 
-              `• ${item.itemDescription}: $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}`
-            );
-            responseMessage += "\n\nItems purchased:\n" + items.join("\n");
+            // Format as classical paper receipt
+            const receiptWidth = 32;
+            const centerText = (text: string) => {
+              const padding = Math.max(0, receiptWidth - text.length);
+              const leftPad = Math.floor(padding / 2);
+              return ' '.repeat(leftPad) + text;
+            };
+            
+            const rightAlign = (left: string, right: string) => {
+              const maxLeft = receiptWidth - right.length - 1;
+              const truncatedLeft = left.length > maxLeft ? left.substring(0, maxLeft - 3) + '...' : left;
+              const spaces = receiptWidth - truncatedLeft.length - right.length;
+              return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
+            };
+            
+            responseMessage = "```\n";
+            responseMessage += centerText(searchTerm.toUpperCase()) + "\n";
+            responseMessage += centerText("RECEIPT") + "\n";
+            responseMessage += "=".repeat(receiptWidth) + "\n";
+            responseMessage += centerText(new Date().toLocaleDateString()) + "\n";
+            responseMessage += centerText(new Date().toLocaleTimeString()) + "\n";
+            responseMessage += "-".repeat(receiptWidth) + "\n\n";
+            
+            // Items
+            responseData.forEach((item: any) => {
+              const price = `$${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}`;
+              responseMessage += rightAlign(item.itemDescription, price) + "\n";
+            });
+            
+            responseMessage += "\n" + "-".repeat(receiptWidth) + "\n";
+            responseMessage += rightAlign("TOTAL", `$${total.toFixed(2)}`) + "\n";
+            responseMessage += "=".repeat(receiptWidth) + "\n";
+            responseMessage += centerText("THANK YOU FOR SHOPPING!") + "\n";
+            responseMessage += centerText(`${responseData.length} ITEM${responseData.length > 1 ? 'S' : ''}`) + "\n";
+            responseMessage += "```";
             
             suggestions = ["View all receipts from this store", "Compare with previous visits", "Set budget alerts"];
           } else {

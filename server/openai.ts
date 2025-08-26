@@ -51,6 +51,8 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week
           - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee'
           - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks'
+          - "When did I buy burger buns last time?" -> queryType: 'semantic_search', searchTerm: 'burger buns', isLatest: true
+          - "What was my last purchase of coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', isLatest: true
           - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
           - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
           

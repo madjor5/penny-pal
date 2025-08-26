@@ -315,6 +315,33 @@ export class DatabaseStorage implements IStorage {
 
     return similarItems;
   }
+
+  // Generate embeddings for all receipt items that don't have them
+  async generateMissingEmbeddings(): Promise<void> {
+    console.log('🔄 Generating missing embeddings for receipt items...');
+    const itemsWithoutEmbeddings = await db.select()
+      .from(receiptItems)
+      .where(sql`${receiptItems.embedding} IS NULL`);
+
+    console.log(`Found ${itemsWithoutEmbeddings.length} items without embeddings`);
+
+    for (const item of itemsWithoutEmbeddings) {
+      try {
+        console.log(`Generating embedding for: ${item.itemDescription}`);
+        const embedding = await generateEmbedding(item.itemDescription);
+        
+        await db.update(receiptItems)
+          .set({ embedding: embedding })
+          .where(eq(receiptItems.id, item.id));
+          
+        console.log(`✅ Updated embedding for: ${item.itemDescription}`);
+      } catch (error) {
+        console.error(`❌ Failed to generate embedding for: ${item.itemDescription}`, error);
+      }
+    }
+    
+    console.log('🎉 Finished generating embeddings!');
+  }
 }
 
 export const storage = new DatabaseStorage();

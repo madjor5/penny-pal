@@ -364,21 +364,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               suggestions = ["Search for all purchases of this item", "View spending trends for this category", "Set budget alert for this category"];
               } else {
-              responseMessage = `Found ${responseData.length} item${responseData.length > 1 ? 's' : ''} matching "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
+              responseMessage = `Found ${responseData.length} item${responseData.length > 1 ? 's' : ''} matching "${searchTerm}". Total spent: $${total.toFixed(2)}.\n\n`;
               
-              // Show top 3 items as examples
-              if (responseData.length > 0) {
-                const topItems = responseData.slice(0, 3).map((item: any) => 
-                  `• ${item.itemDescription}: $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}`
-                );
-                responseMessage += "\n\nTop matches:\n" + topItems.join("\n");
-                
-                if (responseData.length > 3) {
-                  responseMessage += `\n... and ${responseData.length - 3} more item${responseData.length - 3 > 1 ? 's' : ''}`;
+              // Group items by transaction to show full receipts
+              const transactionGroups = new Map();
+              for (const item of responseData) {
+                if (!transactionGroups.has(item.transactionId)) {
+                  transactionGroups.set(item.transactionId, []);
                 }
+                transactionGroups.get(item.transactionId).push(item);
+              }
+
+              // Show each receipt that contains school equipment
+              let receiptCount = 0;
+              for (const [transactionId, items] of transactionGroups) {
+                receiptCount++;
+                
+                // Get the full receipt and transaction details
+                const fullReceipt = await storage.getReceiptItems(transactionId);
+                const transaction = await storage.getTransaction(transactionId);
+                
+                if (!transaction) continue;
+                
+                const receiptTotal = fullReceipt.reduce((sum: number, receiptItem: any) => sum + Math.abs(parseFloat(receiptItem.itemAmount)), 0);
+                const transactionDate = new Date(transaction.date);
+                const storeName = transaction.merchant || "STORE";
+                const receiptDate = transactionDate.toLocaleDateString();
+                const receiptTime = transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                responseMessage += `**Receipt #${receiptCount} - ${receiptDate} at ${storeName}**\n\n`;
+                
+                // Format as classical paper receipt
+                const receiptWidth = 32;
+                const centerText = (text: string) => {
+                  const padding = Math.max(0, receiptWidth - text.length);
+                  const leftPad = Math.floor(padding / 2);
+                  return ' '.repeat(leftPad) + text;
+                };
+                
+                const rightAlign = (left: string, right: string) => {
+                  const maxLeft = receiptWidth - right.length - 1;
+                  const truncatedLeft = left.length > maxLeft ? left.substring(0, maxLeft - 3) + '...' : left;
+                  const spaces = receiptWidth - truncatedLeft.length - right.length;
+                  return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
+                };
+                
+                responseMessage += "```\n";
+                responseMessage += centerText(storeName.toUpperCase()) + "\n";
+                responseMessage += centerText("RECEIPT") + "\n";
+                responseMessage += "=".repeat(receiptWidth) + "\n";
+                responseMessage += centerText(receiptDate) + "\n";
+                responseMessage += centerText(receiptTime) + "\n";
+                responseMessage += "-".repeat(receiptWidth) + "\n\n";
+                
+                // Items (highlight the school equipment items)
+                const matchingItemIds = new Set(items.map((item: any) => item.id));
+                fullReceipt.forEach((receiptItem: any) => {
+                  const price = `$${Math.abs(parseFloat(receiptItem.itemAmount)).toFixed(2)}`;
+                  const itemLine = rightAlign(receiptItem.itemDescription, price);
+                  if (matchingItemIds.has(receiptItem.id)) {
+                    responseMessage += "**" + itemLine + "**\n"; // Mark school equipment items in bold
+                  } else {
+                    responseMessage += itemLine + "\n";
+                  }
+                });
+                
+                responseMessage += "\n" + "-".repeat(receiptWidth) + "\n";
+                responseMessage += rightAlign("TOTAL", `$${receiptTotal.toFixed(2)}`) + "\n";
+                responseMessage += "=".repeat(receiptWidth) + "\n";
+                responseMessage += centerText(`${fullReceipt.length} ITEM${fullReceipt.length > 1 ? 'S' : ''}`) + "\n";
+                responseMessage += "```\n\n";
               }
               
-              suggestions = ["Search for similar items", "View transaction details", "Set budget for this category"];
+              if (receiptCount > 1) {
+                responseMessage += `**Summary**: Found school equipment items across ${receiptCount} different receipts.`;
+              }
+              
+              suggestions = ["Search for similar items", "View spending trends for this category", "Set budget for this category"];
               }
             }
           } else {

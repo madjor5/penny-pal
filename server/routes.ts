@@ -23,6 +23,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse the user's financial query
       const query = await parseFinancialQuery(message);
+      console.log('Parsed query:', JSON.stringify(query, null, 2));
       
       debugInfo.openaiQuery = {
         request: `Parse financial query: "${message}"`,
@@ -42,8 +43,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
+              console.log('Date range detected:', query.parameters.dateRange);
               const startDate = new Date(query.parameters.dateRange.startDate);
               const endDate = new Date(query.parameters.dateRange.endDate);
+              console.log('Parsed dates - Start:', startDate, 'End:', endDate);
               
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -51,6 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
                 responseData = await storage.getTransactions(undefined, 20);
               } else {
+                console.log('Using date range filter - transactions found:', (await storage.getTransactionsByDateRange(startDate, endDate)).length);
                 dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);
                 responseData = await storage.getTransactionsByDateRange(startDate, endDate);
               }

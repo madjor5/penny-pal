@@ -33,6 +33,7 @@ export interface IStorage {
   getTransactions(accountId?: string, limit?: number): Promise<Transaction[]>;
   getTransactionsByDateRange(startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]>;
   getTransactionsByCategory(category: string, accountId?: string): Promise<Transaction[]>;
+  getTransactionsByCategoryAndDateRange(category: string, startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
 
   // Budgets
@@ -124,6 +125,24 @@ export class DatabaseStorage implements IStorage {
 
     if (accountId) {
       whereCondition = and(whereCondition, eq(transactions.accountId, accountId)) as any;
+    }
+
+    return await db
+      .select()
+      .from(transactions)
+      .where(whereCondition)
+      .orderBy(desc(transactions.date));
+  }
+
+  async getTransactionsByCategoryAndDateRange(category: string, startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]> {
+    let whereCondition = and(
+      eq(transactions.category, category),
+      gte(transactions.date, startDate),
+      lte(transactions.date, endDate)
+    );
+
+    if (accountId) {
+      whereCondition = and(whereCondition, eq(transactions.accountId, accountId));
     }
 
     return await db

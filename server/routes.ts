@@ -38,14 +38,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       switch (query.queryType) {
         case 'transactions':
-          if (query.parameters.category) {
+          if (query.parameters.category && query.parameters.dateRange) {
+            try {
+              console.log('Category and date range detected:', query.parameters.category, query.parameters.dateRange);
+              const startDate = new Date(query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.end);
+              console.log('Parsed dates - Start:', startDate, 'End:', endDate);
+              
+              if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                console.error('Invalid date range, falling back to category only:', query.parameters.dateRange);
+                dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to invalid dates`);
+                responseData = await storage.getTransactionsByCategory(query.parameters.category);
+              } else {
+                console.log('Using category + date range filter');
+                dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}')`);
+                responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate);
+              }
+            } catch (error) {
+              console.error('Date parsing error, falling back to category only:', error);
+              dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to date parsing error`);
+              responseData = await storage.getTransactionsByCategory(query.parameters.category);
+            }
+          } else if (query.parameters.category) {
             dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
               console.log('Date range detected:', query.parameters.dateRange);
-              const startDate = new Date(query.parameters.dateRange.startDate);
-              const endDate = new Date(query.parameters.dateRange.endDate);
+              const startDate = new Date(query.parameters.dateRange.start);
+              const endDate = new Date(query.parameters.dateRange.end);
               console.log('Parsed dates - Start:', startDate, 'End:', endDate);
               
               // Validate dates

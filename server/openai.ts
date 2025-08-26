@@ -17,8 +17,9 @@ export interface FinancialQuery {
     amount?: number;
     timeframe?: string;
     searchTerm?: string; // For semantic search
+    isLatest?: boolean; // For latest/last visit queries
   };
-  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search';
+  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt';
 }
 
 export interface FinancialResponse {
@@ -38,8 +39,8 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           Parse the user's message and extract:
           - intent: what they want to know
-          - parameters: relevant filters like category, date range, account type, amounts, timeframe
-          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search'
+          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest
+          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
           
           For date ranges, use ISO date strings. For relative dates like "this month" or "last week", calculate the actual dates.
           Account types can be: 'budget', 'expenses', 'savings'
@@ -50,6 +51,8 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week
           - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee'
           - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks'
+          - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
+          - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
           
           Respond with valid JSON only.`
         },

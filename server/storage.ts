@@ -56,6 +56,7 @@ export interface IStorage {
   createReceiptItem(item: InsertReceiptItem): Promise<ReceiptItem>;
   searchReceiptItemsBySemantic(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
   searchReceiptItemsByStore(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
+  getLatestReceiptFromStore(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
 
   // Analytics
   getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
@@ -364,6 +365,30 @@ export class DatabaseStorage implements IStorage {
       .orderBy(receiptItems.createdAt);
 
     return receiptItemsFromStoreTransactions;
+  }
+
+  // Get receipt items from the latest transaction at a specific store
+  async getLatestReceiptFromStore(searchTerm: string, threshold: number = 0.3): Promise<ReceiptItem[]> {
+    // First find transactions that match the store/merchant
+    const matchingTransactions = await this.searchTransactionsBySemantic(searchTerm, threshold);
+    
+    if (matchingTransactions.length === 0) {
+      return [];
+    }
+
+    // Get the most recent transaction by date
+    const latestTransaction = matchingTransactions.sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )[0];
+
+    // Get receipt items from just that transaction
+    const receiptItemsFromLatestTransaction = await db
+      .select()
+      .from(receiptItems)
+      .where(eq(receiptItems.transactionId, latestTransaction.id))
+      .orderBy(receiptItems.createdAt);
+
+    return receiptItemsFromLatestTransaction;
   }
 }
 

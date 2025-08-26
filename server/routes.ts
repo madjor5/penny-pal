@@ -98,6 +98,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
 
+        case 'latest_receipt':
+          if (query.parameters.searchTerm) {
+            // Get receipt from latest visit to specific store
+            dbQueries.push(`getLatestReceiptFromStore('${query.parameters.searchTerm}')`);
+            responseData = await storage.getLatestReceiptFromStore(query.parameters.searchTerm);
+          } else {
+            responseData = [];
+          }
+          break;
+
         default:
           // For general queries, get account overview
           dbQueries.push(`getAccounts()`);

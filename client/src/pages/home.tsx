@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 export default function Home() {
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -24,7 +25,7 @@ export default function Home() {
   return (
     <div className="bg-gray-50 font-inter text-gray-900 min-h-screen flex flex-col">
       <ChatHeader data-testid="chat-header" />
-      <ChatContainer data-testid="chat-container" />
+      <ChatContainer isProcessing={isProcessing} data-testid="chat-container" />
       
       <QuickActions 
         isOpen={isQuickActionsOpen}
@@ -36,6 +37,7 @@ export default function Home() {
         message={message}
         setMessage={setMessage}
         onToggleQuickActions={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+        onProcessingChange={setIsProcessing}
         data-testid="chat-input"
       />
     </div>

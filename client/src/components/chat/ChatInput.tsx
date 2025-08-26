@@ -8,14 +8,28 @@ interface ChatInputProps {
   message: string;
   setMessage: (message: string) => void;
   onToggleQuickActions: () => void;
+  onProcessingChange?: (isProcessing: boolean) => void;
 }
 
-export default function ChatInput({ message, setMessage, onToggleQuickActions }: ChatInputProps) {
+export default function ChatInput({ message, setMessage, onToggleQuickActions, onProcessingChange }: ChatInputProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
+      // Immediately add user message to cache (optimistic update)
+      const tempUserMessage = {
+        id: `temp-${Date.now()}`,
+        message,
+        isUser: true,
+        queryData: null,
+        createdAt: new Date().toISOString()
+      };
+      
+      queryClient.setQueryData(['/api/chat/history'], (old: any) => 
+        [...(old || []), tempUserMessage]
+      );
+
       const response = await apiRequest('POST', '/api/chat', { message });
       const responseData = await response.json();
       return responseData;
@@ -23,8 +37,10 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions }:
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
       setMessage('');
+      onProcessingChange?.(false);
     },
     onError: (error: any) => {
+      onProcessingChange?.(false);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -36,6 +52,7 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions }:
 
   const handleSendMessage = () => {
     if (message.trim() && !sendMessageMutation.isPending) {
+      onProcessingChange?.(true);
       sendMessageMutation.mutate(message.trim());
     }
   };

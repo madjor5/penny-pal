@@ -39,8 +39,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case 'transactions':
           if (query.parameters.category && query.parameters.dateRange) {
             try {
-              const startDate = new Date(query.parameters.dateRange.startDate || query.parameters.dateRange.start);
-              const endDate = new Date(query.parameters.dateRange.endDate || query.parameters.dateRange.end);
+              console.log('DEBUG: dateRange object:', query.parameters.dateRange);
+              console.log('DEBUG: startDate value:', query.parameters.dateRange.startDate);
+              console.log('DEBUG: start value:', query.parameters.dateRange.start);
+              console.log('DEBUG: endDate value:', query.parameters.dateRange.endDate);
+              console.log('DEBUG: end value:', query.parameters.dateRange.end);
+              
+              const startDateValue = query.parameters.dateRange.startDate || query.parameters.dateRange.start;
+              const endDateValue = query.parameters.dateRange.endDate || query.parameters.dateRange.end;
+              console.log('DEBUG: Using startDateValue:', startDateValue);
+              console.log('DEBUG: Using endDateValue:', endDateValue);
+              
+              const startDate = new Date(startDateValue);
+              const endDate = new Date(endDateValue);
+              console.log('DEBUG: Parsed startDate:', startDate);
+              console.log('DEBUG: Parsed endDate:', endDate);
               
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range, falling back to category only:', query.parameters.dateRange);

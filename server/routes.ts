@@ -121,13 +121,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'semantic_search':
           if (query.parameters.searchTerm) {
-            // Use semantic search for specific products/items
-            dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
-            responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
-            
-            // If this is a "latest" query, limit to just the most recent item
-            if (query.parameters.isLatest && responseData.length > 0) {
-              responseData = [responseData[0]]; // Already sorted by similarity then date
+            if (query.parameters.searchType === 'store') {
+              // Search transactions by merchant/store
+              dbQueries.push(`searchTransactionsBySemantic('${query.parameters.searchTerm}')`);
+              responseData = await storage.searchTransactionsBySemantic(query.parameters.searchTerm);
+              
+              // If this is a "latest" query, limit to just the most recent transaction
+              if (query.parameters.isLatest && responseData.length > 0) {
+                responseData = [responseData[0]]; // Already sorted by similarity then date
+              }
+            } else {
+              // Default to product search (search receipt items)
+              dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
+              responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
+              
+              // If this is a "latest" query, limit to just the most recent item
+              if (query.parameters.isLatest && responseData.length > 0) {
+                responseData = [responseData[0]]; // Already sorted by similarity then date
+              }
             }
           } else {
             responseData = [];
@@ -224,10 +235,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'semantic_search':
           if (responseData.length > 0) {
-            const total = responseData.reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.itemAmount)), 0);
             const searchTerm = query.parameters.searchTerm;
             
-            if (query.parameters.isLatest) {
+            if (query.parameters.searchType === 'store') {
+              // Handle store/transaction search results
+              const total = responseData.reduce((sum: number, transaction: any) => sum + Math.abs(parseFloat(transaction.amount)), 0);
+              
+              if (query.parameters.isLatest) {
+                // For latest store visit, show transaction details
+                const transaction = responseData[0];
+                const transactionDate = new Date(transaction.date).toLocaleDateString();
+                responseMessage = `Your last visit to ${searchTerm} was on ${transactionDate}. You spent $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} on "${transaction.description}".`;
+                suggestions = ["View receipt from this transaction", "See all visits to this store", "Compare spending at different stores"];
+              } else {
+                responseMessage = `Found ${responseData.length} transaction${responseData.length > 1 ? 's' : ''} at "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
+                
+                // Show top 3 transactions as examples
+                if (responseData.length > 0) {
+                  const topTransactions = responseData.slice(0, 3).map((transaction: any) => 
+                    `• ${new Date(transaction.date).toLocaleDateString()}: $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} - ${transaction.description}`
+                  );
+                  responseMessage += "\n\nRecent visits:\n" + topTransactions.join("\n");
+                  
+                  if (responseData.length > 3) {
+                    responseMessage += `\n... and ${responseData.length - 3} more visit${responseData.length - 3 > 1 ? 's' : ''}`;
+                  }
+                }
+                
+                suggestions = ["View receipts from these visits", "See spending trends at this store", "Compare with other stores"];
+              }
+            } else {
+              // Handle product/receipt item search results
+              const total = responseData.reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.itemAmount)), 0);
+              
+              if (query.parameters.isLatest) {
               // For "last time" queries, show the most recent item with full receipt context
               const item = responseData[0];
               const itemDate = new Date(item.createdAt).toLocaleDateString();
@@ -285,7 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               responseMessage += "```";
               
               suggestions = ["Search for all purchases of this item", "View spending trends for this category", "Set budget alert for this category"];
-            } else {
+              } else {
               responseMessage = `Found ${responseData.length} item${responseData.length > 1 ? 's' : ''} matching "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
               
               // Show top 3 items as examples
@@ -301,6 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               
               suggestions = ["Search for similar items", "View transaction details", "Set budget for this category"];
+              }
             }
           } else {
             const searchTerm = query.parameters.searchTerm;

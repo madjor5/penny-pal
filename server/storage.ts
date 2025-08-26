@@ -358,71 +358,17 @@ export class DatabaseStorage implements IStorage {
     return similarItems;
   }
 
-  // Search transactions by semantic similarity
-  async searchTransactionsBySemantic(searchTerm: string, threshold: number = 0.3): Promise<Transaction[]> {
-    // Generate embedding for search term
-    const searchEmbedding = await generateEmbedding(searchTerm);
-    
-    if (searchEmbedding.length === 0) {
-      return [];
-    }
-
-    // Get all transactions and calculate similarity
-    const allTransactions = await db.select().from(transactions);
-    
-    const similarTransactions = allTransactions
-      .map(transaction => ({
-        ...transaction,
-        similarity: transaction.embedding ? cosineSimilarity(searchEmbedding, transaction.embedding) : 0
-      }))
-      .filter(transaction => transaction.similarity >= threshold)
-      .sort((a, b) => b.similarity - a.similarity);
-
-    return similarTransactions;
-  }
-
-  // Search receipt items by first finding transactions at specific stores/merchants
-  async searchReceiptItemsByStore(searchTerm: string, threshold: number = 0.3): Promise<ReceiptItem[]> {
-    // First find transactions that match the store/merchant
-    const matchingTransactions = await this.searchTransactionsBySemantic(searchTerm, threshold);
-    
-    if (matchingTransactions.length === 0) {
-      return [];
-    }
-
-    // Get all receipt items from those transactions
-    const transactionIds = matchingTransactions.map(t => t.id);
-    const receiptItemsFromStoreTransactions = await db
+  async searchTransactionsBySemantic(searchTerm: string): Promise<Transaction[]> {
+    // For transaction search, use simple text matching on merchant field
+    // This is more appropriate for store names than semantic embedding
+    const results = await db
       .select()
-      .from(receiptItems)
-      .where(inArray(receiptItems.transactionId, transactionIds))
-      .orderBy(receiptItems.createdAt);
-
-    return receiptItemsFromStoreTransactions;
-  }
-
-  // Get receipt items from the latest transaction at a specific store
-  async getLatestReceiptFromStore(searchTerm: string, threshold: number = 0.3): Promise<ReceiptItem[]> {
-    // First find transactions that match the store/merchant
-    const matchingTransactions = await this.searchTransactionsBySemantic(searchTerm, threshold);
+      .from(transactions)
+      .where(sql`LOWER(merchant) LIKE LOWER('%' || ${searchTerm} || '%')`)
+      .orderBy(desc(transactions.date))
+      .limit(20);
     
-    if (matchingTransactions.length === 0) {
-      return [];
-    }
-
-    // Get the most recent transaction by date
-    const latestTransaction = matchingTransactions.sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    )[0];
-
-    // Get receipt items from just that transaction
-    const receiptItemsFromLatestTransaction = await db
-      .select()
-      .from(receiptItems)
-      .where(eq(receiptItems.transactionId, latestTransaction.id))
-      .orderBy(receiptItems.createdAt);
-
-    return receiptItemsFromLatestTransaction;
+    return results;
   }
 }
 

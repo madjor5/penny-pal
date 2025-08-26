@@ -18,6 +18,7 @@ export interface FinancialQuery {
     timeframe?: string;
     searchTerm?: string; // For semantic search
     isLatest?: boolean; // For latest/last visit queries
+    searchType?: 'product' | 'store'; // Whether searching for products or stores
   };
   queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt';
 }
@@ -39,8 +40,12 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           Parse the user's message and extract:
           - intent: what they want to know
-          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest
+          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest, searchType
           - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
+          
+          For searchType parameter, determine if the search is for:
+          - 'product': searching for specific items/products (e.g., "burger buns", "coffee", "milk")
+          - 'store': searching for transactions at specific stores/merchants (e.g., "Costco", "Target", "Starbucks")
           
           For date ranges, use ISO date strings. For relative dates like "this month" or "last week", calculate the actual dates.
           Account types can be: 'budget', 'expenses', 'savings'
@@ -49,10 +54,11 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month
           - "How am I doing with my savings goals?" -> queryType: 'goals'
           - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week
-          - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee'
-          - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks'
-          - "When did I buy burger buns last time?" -> queryType: 'semantic_search', searchTerm: 'burger buns', isLatest: true
-          - "What was my last purchase of coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', isLatest: true
+          - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', searchType: 'product'
+          - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks', searchType: 'store'
+          - "Show me my Costco transactions" -> queryType: 'semantic_search', searchTerm: 'Costco', searchType: 'store'
+          - "When did I buy burger buns last time?" -> queryType: 'semantic_search', searchTerm: 'burger buns', isLatest: true, searchType: 'product'
+          - "What was my last purchase of coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', isLatest: true, searchType: 'product'
           - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
           - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
           

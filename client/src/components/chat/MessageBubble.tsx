@@ -30,33 +30,43 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
         <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
 {(() => {
             // Check if message contains a receipt code block
-            const receiptMatch = message.match(/^(.*?)(```[\s\S]*?RECEIPT[\s\S]*?```)(.*)$/);
+            if (message.includes('```') && message.includes('RECEIPT')) {
+              // Find the start and end of the code block
+              const codeBlockStart = message.indexOf('```');
+              const codeBlockEnd = message.lastIndexOf('```') + 3;
+              
+              if (codeBlockStart !== -1 && codeBlockEnd > codeBlockStart) {
+                const beforeReceipt = message.substring(0, codeBlockStart);
+                const receiptBlock = message.substring(codeBlockStart, codeBlockEnd);
+                const afterReceipt = message.substring(codeBlockEnd);
+                
+                return (
+                  <div className="space-y-3">
+                    {beforeReceipt.trim() && (
+                      <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
+                    )}
+                    <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                      {receiptBlock.replace(/```/g, '')}
+                    </pre>
+                    {afterReceipt.trim() && (
+                      <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
+                    )}
+                  </div>
+                );
+              }
+            }
             
-            if (receiptMatch) {
-              const [, beforeReceipt, receiptBlock, afterReceipt] = receiptMatch;
-              return (
-                <div className="space-y-3">
-                  {beforeReceipt.trim() && (
-                    <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
-                  )}
-                  <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-                    {receiptBlock.replace(/```/g, '')}
-                  </pre>
-                  {afterReceipt.trim() && (
-                    <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
-                  )}
-                </div>
-              );
-            } else if (message.startsWith('```') && message.includes('RECEIPT')) {
-              // Legacy handling for receipt-only messages
+            // Legacy handling for receipt-only messages
+            if (message.startsWith('```') && message.includes('RECEIPT')) {
               return (
                 <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
                   {message.replace(/```/g, '')}
                 </pre>
               );
-            } else {
-              return <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>;
             }
+            
+            // Default text rendering
+            return <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>;
           })()}
         </div>
         

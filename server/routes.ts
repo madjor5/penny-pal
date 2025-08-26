@@ -15,22 +15,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      let debugInfo: any = {};
-      
-      if (debug) {
-        debugInfo.userMessage = message;
-        debugInfo.timestamp = new Date().toISOString();
-      }
+      // Always capture debug info regardless of debug flag
+      let debugInfo: any = {
+        userMessage: message,
+        timestamp: new Date().toISOString()
+      };
 
       // Parse the user's financial query
       const query = await parseFinancialQuery(message);
       
-      if (debug) {
-        debugInfo.openaiQuery = {
-          request: `Parse financial query: "${message}"`,
-          response: query
-        };
-      }
+      debugInfo.openaiQuery = {
+        request: `Parse financial query: "${message}"`,
+        response: query
+      };
       
       let responseData: any = null;
       let contextData: any = null;
@@ -41,7 +38,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category) {
-            if (debug) dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
+            dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
@@ -51,49 +48,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range:', query.parameters.dateRange);
-                if (debug) dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
+                dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
                 responseData = await storage.getTransactions(undefined, 20);
               } else {
-                if (debug) dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);
+                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);
                 responseData = await storage.getTransactionsByDateRange(startDate, endDate);
               }
             } catch (error) {
               console.error('Date parsing error:', error);
-              if (debug) dbQueries.push(`getTransactions(undefined, 20) - fallback due to date parsing error`);
+              dbQueries.push(`getTransactions(undefined, 20) - fallback due to date parsing error`);
               responseData = await storage.getTransactions(undefined, 20);
             }
           } else {
-            if (debug) dbQueries.push(`getTransactions(undefined, 20)`);
+            dbQueries.push(`getTransactions(undefined, 20)`);
             responseData = await storage.getTransactions(undefined, 20);
           }
           break;
 
         case 'budget':
-          if (debug) dbQueries.push(`getBudgets()`);
+          dbQueries.push(`getBudgets()`);
           responseData = await storage.getBudgets();
           // Get spending data for budget comparison
-          if (debug) dbQueries.push(`getSpendingByCategory()`);
+          dbQueries.push(`getSpendingByCategory()`);
           contextData = await storage.getSpendingByCategory();
           break;
 
         case 'goals':
-          if (debug) dbQueries.push(`getSavingsGoals()`);
+          dbQueries.push(`getSavingsGoals()`);
           responseData = await storage.getSavingsGoals();
           break;
 
         case 'analysis':
           if (query.parameters.category) {
-            if (debug) dbQueries.push(`getSpendingByCategory()`);
+            dbQueries.push(`getSpendingByCategory()`);
             responseData = await storage.getSpendingByCategory();
           } else {
-            if (debug) dbQueries.push(`getMonthlySpending()`);
+            dbQueries.push(`getMonthlySpending()`);
             responseData = await storage.getMonthlySpending();
           }
           break;
 
         case 'semantic_search':
           if (query.parameters.searchTerm) {
-            if (debug) dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
+            dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
             responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
           } else {
             responseData = [];
@@ -102,28 +99,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         default:
           // For general queries, get account overview
-          if (debug) dbQueries.push(`getAccounts()`);
+          dbQueries.push(`getAccounts()`);
           responseData = await storage.getAccounts();
       }
       
-      if (debug) {
-        debugInfo.databaseQueries = dbQueries;
-        debugInfo.queryResults = {
-          count: Array.isArray(responseData) ? responseData.length : (responseData ? 1 : 0),
-          data: responseData
-        };
-      }
+      // Always capture database queries and results
+      debugInfo.databaseQueries = dbQueries;
+      debugInfo.queryResults = {
+        count: Array.isArray(responseData) ? responseData.length : (responseData ? 1 : 0),
+        data: responseData
+      };
 
       // Generate response server-side based on query type
       let responseMessage = "";
       let suggestions: string[] = [];
       
-      if (debug) {
-        debugInfo.responseGeneration = {
-          queryType: query.queryType,
-          parameters: query.parameters
-        };
-      }
+      // Always capture response generation info
+      debugInfo.responseGeneration = {
+        queryType: query.queryType,
+        parameters: query.parameters
+      };
 
       switch (query.queryType) {
         case 'transactions':

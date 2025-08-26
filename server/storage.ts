@@ -201,7 +201,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(chatMessages)
-      .orderBy(desc(chatMessages.createdAt))
+      .orderBy(chatMessages.createdAt)
       .limit(limit);
   }
 

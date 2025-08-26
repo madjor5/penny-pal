@@ -45,9 +45,16 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
                     {beforeReceipt.trim() && (
                       <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
                     )}
-                    <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-                      {receiptBlock.replace(/```/g, '')}
-                    </pre>
+                    <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                      {receiptBlock.replace(/```/g, '').split('\n').map((line, index) => {
+                        // Check if line should be bold (marked with **)
+                        if (line.includes('**')) {
+                          const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                          return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
+                        }
+                        return <div key={index}>{line}</div>;
+                      })}
+                    </div>
                     {afterReceipt.trim() && (
                       <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
                     )}
@@ -59,9 +66,16 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
             // Legacy handling for receipt-only messages
             if (message.startsWith('```') && message.includes('RECEIPT')) {
               return (
-                <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-                  {message.replace(/```/g, '')}
-                </pre>
+                <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                  {message.replace(/```/g, '').split('\n').map((line, index) => {
+                    // Check if line should be bold (marked with **)
+                    if (line.includes('**')) {
+                      const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                      return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
+                    }
+                    return <div key={index}>{line}</div>;
+                  })}
+                </div>
               );
             }
             

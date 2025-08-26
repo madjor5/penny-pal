@@ -264,7 +264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const price = `$${Math.abs(parseFloat(receiptItem.itemAmount)).toFixed(2)}`;
                 const itemLine = rightAlign(receiptItem.itemDescription, price);
                 if (receiptItem.id === item.id) {
-                  responseMessage += ">>> " + itemLine + " <<<\n"; // Highlight the searched item
+                  responseMessage += "**" + itemLine + "**\n"; // Mark for bold formatting
                 } else {
                   responseMessage += itemLine + "\n";
                 }

@@ -4,6 +4,7 @@ import {
   budgets, 
   savingsGoals, 
   chatMessages,
+  receiptItems,
   type Account, 
   type InsertAccount,
   type Transaction,
@@ -13,10 +14,13 @@ import {
   type SavingsGoal,
   type InsertSavingsGoal,
   type ChatMessage,
-  type InsertChatMessage
+  type InsertChatMessage,
+  type ReceiptItem,
+  type InsertReceiptItem
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, lte, and, sum, sql } from "drizzle-orm";
+import { generateEmbedding, cosineSimilarity } from "./openai";
 
 export interface IStorage {
   // Accounts
@@ -46,6 +50,11 @@ export interface IStorage {
   // Chat Messages
   getChatMessages(limit?: number): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+
+  // Receipt Items
+  getReceiptItems(transactionId?: string): Promise<ReceiptItem[]>;
+  createReceiptItem(item: InsertReceiptItem): Promise<ReceiptItem>;
+  searchReceiptItemsBySemantic(searchTerm: string, threshold?: number): Promise<ReceiptItem[]>;
 
   // Analytics
   getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
@@ -258,6 +267,53 @@ export class DatabaseStorage implements IStorage {
 
     const results = await baseQuery;
     return results.map(r => ({ month: r.month as string, total: r.total || '0' }));
+  }
+
+  // Receipt Items
+  async getReceiptItems(transactionId?: string): Promise<ReceiptItem[]> {
+    let query = db.select().from(receiptItems);
+    
+    if (transactionId) {
+      query = query.where(eq(receiptItems.transactionId, transactionId)) as any;
+    }
+
+    return await query.orderBy(receiptItems.createdAt);
+  }
+
+  async createReceiptItem(insertItem: InsertReceiptItem): Promise<ReceiptItem> {
+    // Generate embedding for the item description
+    const embedding = await generateEmbedding(insertItem.itemDescription);
+    
+    const [item] = await db
+      .insert(receiptItems)
+      .values({
+        ...insertItem,
+        embedding: embedding
+      })
+      .returning();
+    return item;
+  }
+
+  async searchReceiptItemsBySemantic(searchTerm: string, threshold: number = 0.7): Promise<ReceiptItem[]> {
+    // Generate embedding for search term
+    const searchEmbedding = await generateEmbedding(searchTerm);
+    
+    if (searchEmbedding.length === 0) {
+      return [];
+    }
+
+    // Get all receipt items and calculate similarity
+    const allItems = await db.select().from(receiptItems);
+    
+    const similarItems = allItems
+      .map(item => ({
+        ...item,
+        similarity: item.embedding ? cosineSimilarity(searchEmbedding, item.embedding) : 0
+      }))
+      .filter(item => item.similarity >= threshold)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    return similarItems;
   }
 }
 

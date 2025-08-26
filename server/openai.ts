@@ -16,8 +16,9 @@ export interface FinancialQuery {
     accountType?: string;
     amount?: number;
     timeframe?: string;
+    searchTerm?: string; // For semantic search
   };
-  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general';
+  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search';
 }
 
 export interface FinancialResponse {
@@ -38,7 +39,7 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           Parse the user's message and extract:
           - intent: what they want to know
           - parameters: relevant filters like category, date range, account type, amounts, timeframe
-          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general'
+          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search'
           
           For date ranges, use ISO date strings. For relative dates like "this month" or "last week", calculate the actual dates.
           Account types can be: 'budget', 'expenses', 'savings'
@@ -47,6 +48,8 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month
           - "How am I doing with my savings goals?" -> queryType: 'goals'
           - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week
+          - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee'
+          - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks'
           
           Respond with valid JSON only.`
         },
@@ -150,4 +153,36 @@ export async function categorizeTransaction(description: string, merchant?: stri
     console.error('Error categorizing transaction:', error);
     return 'other';
   }
+}
+
+// Generate embeddings for receipt items
+export async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small", // Cost-effective embedding model
+      input: text,
+    });
+
+    return response.data[0].embedding;
+  } catch (error) {
+    console.error('Error generating embedding:', error);
+    return [];
+  }
+}
+
+// Find similar receipt items using cosine similarity
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }

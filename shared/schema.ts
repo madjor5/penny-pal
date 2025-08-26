@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, decimal, timestamp, integer, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, decimal, timestamp, integer, boolean, json, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -53,6 +53,16 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const receiptItems = pgTable("receipt_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").notNull().references(() => transactions.id),
+  itemDescription: text("item_description").notNull(),
+  itemAmount: decimal("item_amount", { precision: 12, scale: 2 }).notNull(),
+  itemCategory: text("item_category"), // Optional categorization
+  embedding: real("embedding").array(), // Store OpenAI embedding vector
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const accountsRelations = relations(accounts, ({ many }) => ({
   transactions: many(transactions),
@@ -60,10 +70,18 @@ export const accountsRelations = relations(accounts, ({ many }) => ({
   savingsGoals: many(savingsGoals),
 }));
 
-export const transactionsRelations = relations(transactions, ({ one }) => ({
+export const transactionsRelations = relations(transactions, ({ one, many }) => ({
   account: one(accounts, {
     fields: [transactions.accountId],
     references: [accounts.id],
+  }),
+  receiptItems: many(receiptItems),
+}));
+
+export const receiptItemsRelations = relations(receiptItems, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [receiptItems.transactionId],
+    references: [transactions.id],
   }),
 }));
 
@@ -107,6 +125,11 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   createdAt: true,
 });
 
+export const insertReceiptItemSchema = createInsertSchema(receiptItems).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type Account = typeof accounts.$inferSelect;
 export type InsertAccount = z.infer<typeof insertAccountSchema>;
@@ -122,3 +145,6 @@ export type InsertSavingsGoal = z.infer<typeof insertSavingsGoalSchema>;
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+
+export type ReceiptItem = typeof receiptItems.$inferSelect;
+export type InsertReceiptItem = z.infer<typeof insertReceiptItemSchema>;

@@ -18,8 +18,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Parse the user's financial query
       const query = await parseFinancialQuery(message);
       
-      let responseData = null;
-      let contextData = null;
+      let responseData: any = null;
+      let contextData: any = null;
 
       // Execute the appropriate query based on the parsed intent
       switch (query.queryType) {
@@ -62,6 +62,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getSpendingByCategory();
           } else {
             responseData = await storage.getMonthlySpending();
+          }
+          break;
+
+        case 'semantic_search':
+          if (query.parameters.searchTerm) {
+            responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
+          } else {
+            responseData = [];
           }
           break;
 
@@ -127,6 +135,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseMessage += "\n\n" + budgetVsSpending.join("\n");
           }
           suggestions = ["Add new budget category", "Adjust budget amounts", "View spending trends"];
+          break;
+
+        case 'semantic_search':
+          if (responseData.length > 0) {
+            const total = responseData.reduce((sum: number, item: any) => sum + Math.abs(parseFloat(item.itemAmount)), 0);
+            const searchTerm = query.parameters.searchTerm;
+            responseMessage = `Found ${responseData.length} item${responseData.length > 1 ? 's' : ''} matching "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
+            
+            // Show top 3 items as examples
+            if (responseData.length > 0) {
+              const topItems = responseData.slice(0, 3).map((item: any) => 
+                `• ${item.itemDescription}: $${Math.abs(parseFloat(item.itemAmount)).toFixed(2)}`
+              );
+              responseMessage += "\n\nTop matches:\n" + topItems.join("\n");
+              
+              if (responseData.length > 3) {
+                responseMessage += `\n... and ${responseData.length - 3} more item${responseData.length - 3 > 1 ? 's' : ''}`;
+              }
+            }
+            
+            suggestions = ["Search for similar items", "View transaction details", "Set budget for this category"];
+          } else {
+            const searchTerm = query.parameters.searchTerm;
+            responseMessage = `No items found matching "${searchTerm}". Try different search terms or check your recent transactions.`;
+            suggestions = ["Try a different search term", "View all recent transactions", "Check your transaction history"];
+          }
           break;
 
         default:

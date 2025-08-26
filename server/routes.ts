@@ -45,8 +45,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log('DEBUG: endDate value:', query.parameters.dateRange.endDate);
               console.log('DEBUG: end value:', query.parameters.dateRange.end);
               
-              const startDateValue = query.parameters.dateRange.startDate || query.parameters.dateRange.start;
-              const endDateValue = query.parameters.dateRange.endDate || query.parameters.dateRange.end;
+              const startDateValue = query.parameters.dateRange.start || query.parameters.dateRange.startDate;
+              const endDateValue = query.parameters.dateRange.end || query.parameters.dateRange.endDate;
               console.log('DEBUG: Using startDateValue:', startDateValue);
               console.log('DEBUG: Using endDateValue:', endDateValue);
               
@@ -73,8 +73,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
-              const startDate = new Date(query.parameters.dateRange.startDate || query.parameters.dateRange.start);
-              const endDate = new Date(query.parameters.dateRange.endDate || query.parameters.dateRange.end);
+              const startDate = new Date(query.parameters.dateRange.start || query.parameters.dateRange.startDate);
+              const endDate = new Date(query.parameters.dateRange.end || query.parameters.dateRange.endDate);
               
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
@@ -121,9 +121,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         case 'semantic_search':
           if (query.parameters.searchTerm) {
-            // Use store-based search for queries about specific stores/merchants
-            dbQueries.push(`searchReceiptItemsByStore('${query.parameters.searchTerm}')`);
-            responseData = await storage.searchReceiptItemsByStore(query.parameters.searchTerm);
+            // Use semantic search for specific products/items
+            dbQueries.push(`searchReceiptItemsBySemantic('${query.parameters.searchTerm}')`);
+            responseData = await storage.searchReceiptItemsBySemantic(query.parameters.searchTerm);
           } else {
             responseData = [];
           }

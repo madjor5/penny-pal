@@ -338,7 +338,17 @@ export class DatabaseStorage implements IStorage {
         similarity: item.embedding ? cosineSimilarity(searchEmbedding, item.embedding) : 0
       }))
       .filter(item => item.similarity >= threshold)
-      .sort((a, b) => b.similarity - a.similarity);
+      .sort((a, b) => {
+        // First sort by similarity (high to low)
+        const similarityDiff = b.similarity - a.similarity;
+        if (Math.abs(similarityDiff) > 0.05) { // If similarity difference is significant
+          return similarityDiff;
+        }
+        // If similarity is close, sort by date (most recent first)
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
 
     return similarItems;
   }

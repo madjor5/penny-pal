@@ -42,8 +42,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             responseData = await storage.getTransactionsByCategory(query.parameters.category);
           } else if (query.parameters.dateRange) {
             try {
-              const startDate = new Date(query.parameters.dateRange.start);
-              const endDate = new Date(query.parameters.dateRange.end);
+              const startDate = new Date(query.parameters.dateRange.startDate);
+              const endDate = new Date(query.parameters.dateRange.endDate);
               
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {

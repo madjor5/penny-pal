@@ -41,10 +41,9 @@ export default function ChatContainer() {
           {!chatLoading && chatHistory && Array.isArray(chatHistory) && chatHistory.map((msg: any, index: number) => (
             <MessageBubble
               key={msg.id || index}
-              message={msg.isUser ? msg.message : msg.response}
+              message={msg.message}
               isUser={msg.isUser}
               data={msg.queryData?.data}
-              data-testid={`message-${index}`}
             />
           ))}
 

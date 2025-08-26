@@ -61,11 +61,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate AI response
       const aiResponse = await generateFinancialResponse(query, responseData, JSON.stringify(contextData));
 
-      // Save the chat message
+      // Save the user message
       await storage.createChatMessage({
         message,
-        response: aiResponse.answer,
+        response: null,
         isUser: true,
+        queryData: null
+      });
+
+      // Save the AI response
+      await storage.createChatMessage({
+        message: aiResponse.answer,
+        response: null,
+        isUser: false,
         queryData: { query, data: responseData }
       });
 

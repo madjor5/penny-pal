@@ -324,7 +324,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Search transactions by semantic similarity
-  async searchTransactionsBySemantic(searchTerm: string, threshold: number = 0.7): Promise<Transaction[]> {
+  async searchTransactionsBySemantic(searchTerm: string, threshold: number = 0.3): Promise<Transaction[]> {
     // Generate embedding for search term
     const searchEmbedding = await generateEmbedding(searchTerm);
     
@@ -347,7 +347,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Search receipt items by first finding transactions at specific stores/merchants
-  async searchReceiptItemsByStore(searchTerm: string, threshold: number = 0.7): Promise<ReceiptItem[]> {
+  async searchReceiptItemsByStore(searchTerm: string, threshold: number = 0.3): Promise<ReceiptItem[]> {
     // First find transactions that match the store/merchant
     const matchingTransactions = await this.searchTransactionsBySemantic(searchTerm, threshold);
     

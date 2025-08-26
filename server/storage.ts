@@ -1,0 +1,264 @@
+import { 
+  accounts, 
+  transactions, 
+  budgets, 
+  savingsGoals, 
+  chatMessages,
+  type Account, 
+  type InsertAccount,
+  type Transaction,
+  type InsertTransaction,
+  type Budget,
+  type InsertBudget,
+  type SavingsGoal,
+  type InsertSavingsGoal,
+  type ChatMessage,
+  type InsertChatMessage
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, gte, lte, and, sum, sql } from "drizzle-orm";
+
+export interface IStorage {
+  // Accounts
+  getAccounts(): Promise<Account[]>;
+  getAccount(id: string): Promise<Account | undefined>;
+  createAccount(account: InsertAccount): Promise<Account>;
+  updateAccountBalance(id: string, balance: string): Promise<Account>;
+
+  // Transactions
+  getTransactions(accountId?: string, limit?: number): Promise<Transaction[]>;
+  getTransactionsByDateRange(startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]>;
+  getTransactionsByCategory(category: string, accountId?: string): Promise<Transaction[]>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+
+  // Budgets
+  getBudgets(accountId?: string): Promise<Budget[]>;
+  getBudget(id: string): Promise<Budget | undefined>;
+  createBudget(budget: InsertBudget): Promise<Budget>;
+  updateBudget(id: string, updates: Partial<InsertBudget>): Promise<Budget>;
+
+  // Savings Goals
+  getSavingsGoals(accountId?: string): Promise<SavingsGoal[]>;
+  getSavingsGoal(id: string): Promise<SavingsGoal | undefined>;
+  createSavingsGoal(goal: InsertSavingsGoal): Promise<SavingsGoal>;
+  updateSavingsGoal(id: string, updates: Partial<InsertSavingsGoal>): Promise<SavingsGoal>;
+
+  // Chat Messages
+  getChatMessages(limit?: number): Promise<ChatMessage[]>;
+  createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
+
+  // Analytics
+  getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
+  getMonthlySpending(accountId?: string): Promise<{ month: string; total: string }[]>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // Accounts
+  async getAccounts(): Promise<Account[]> {
+    return await db.select().from(accounts).orderBy(accounts.name);
+  }
+
+  async getAccount(id: string): Promise<Account | undefined> {
+    const [account] = await db.select().from(accounts).where(eq(accounts.id, id));
+    return account;
+  }
+
+  async createAccount(insertAccount: InsertAccount): Promise<Account> {
+    const [account] = await db
+      .insert(accounts)
+      .values(insertAccount)
+      .returning();
+    return account;
+  }
+
+  async updateAccountBalance(id: string, balance: string): Promise<Account> {
+    const [account] = await db
+      .update(accounts)
+      .set({ balance })
+      .where(eq(accounts.id, id))
+      .returning();
+    return account;
+  }
+
+  // Transactions
+  async getTransactions(accountId?: string, limit = 50): Promise<Transaction[]> {
+    let query = db.select().from(transactions);
+    
+    if (accountId) {
+      query = query.where(eq(transactions.accountId, accountId)) as any;
+    }
+    
+    return await query.orderBy(desc(transactions.date)).limit(limit);
+  }
+
+  async getTransactionsByDateRange(startDate: Date, endDate: Date, accountId?: string): Promise<Transaction[]> {
+    let whereCondition = and(
+      gte(transactions.date, startDate),
+      lte(transactions.date, endDate)
+    );
+
+    if (accountId) {
+      whereCondition = and(whereCondition, eq(transactions.accountId, accountId));
+    }
+
+    return await db
+      .select()
+      .from(transactions)
+      .where(whereCondition)
+      .orderBy(desc(transactions.date));
+  }
+
+  async getTransactionsByCategory(category: string, accountId?: string): Promise<Transaction[]> {
+    let whereCondition = eq(transactions.category, category);
+
+    if (accountId) {
+      whereCondition = and(whereCondition, eq(transactions.accountId, accountId)) as any;
+    }
+
+    return await db
+      .select()
+      .from(transactions)
+      .where(whereCondition)
+      .orderBy(desc(transactions.date));
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    const [transaction] = await db
+      .insert(transactions)
+      .values(insertTransaction)
+      .returning();
+    return transaction;
+  }
+
+  // Budgets
+  async getBudgets(accountId?: string): Promise<Budget[]> {
+    let query = db.select().from(budgets);
+    
+    if (accountId) {
+      query = query.where(eq(budgets.accountId, accountId)) as any;
+    }
+    
+    return await query.orderBy(budgets.name);
+  }
+
+  async getBudget(id: string): Promise<Budget | undefined> {
+    const [budget] = await db.select().from(budgets).where(eq(budgets.id, id));
+    return budget;
+  }
+
+  async createBudget(insertBudget: InsertBudget): Promise<Budget> {
+    const [budget] = await db
+      .insert(budgets)
+      .values(insertBudget)
+      .returning();
+    return budget;
+  }
+
+  async updateBudget(id: string, updates: Partial<InsertBudget>): Promise<Budget> {
+    const [budget] = await db
+      .update(budgets)
+      .set(updates)
+      .where(eq(budgets.id, id))
+      .returning();
+    return budget;
+  }
+
+  // Savings Goals
+  async getSavingsGoals(accountId?: string): Promise<SavingsGoal[]> {
+    let query = db.select().from(savingsGoals);
+    
+    if (accountId) {
+      query = query.where(eq(savingsGoals.accountId, accountId)) as any;
+    }
+    
+    return await query.orderBy(savingsGoals.name);
+  }
+
+  async getSavingsGoal(id: string): Promise<SavingsGoal | undefined> {
+    const [goal] = await db.select().from(savingsGoals).where(eq(savingsGoals.id, id));
+    return goal;
+  }
+
+  async createSavingsGoal(insertGoal: InsertSavingsGoal): Promise<SavingsGoal> {
+    const [goal] = await db
+      .insert(savingsGoals)
+      .values(insertGoal)
+      .returning();
+    return goal;
+  }
+
+  async updateSavingsGoal(id: string, updates: Partial<InsertSavingsGoal>): Promise<SavingsGoal> {
+    const [goal] = await db
+      .update(savingsGoals)
+      .set(updates)
+      .where(eq(savingsGoals.id, id))
+      .returning();
+    return goal;
+  }
+
+  // Chat Messages
+  async getChatMessages(limit = 50): Promise<ChatMessage[]> {
+    return await db
+      .select()
+      .from(chatMessages)
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+  }
+
+  async createChatMessage(insertMessage: InsertChatMessage): Promise<ChatMessage> {
+    const [message] = await db
+      .insert(chatMessages)
+      .values(insertMessage)
+      .returning();
+    return message;
+  }
+
+  // Analytics
+  async getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]> {
+    let whereConditions = [sql`${transactions.category} IS NOT NULL`];
+
+    if (accountId) {
+      whereConditions.push(eq(transactions.accountId, accountId));
+    }
+
+    if (startDate && endDate) {
+      whereConditions.push(
+        and(
+          gte(transactions.date, startDate),
+          lte(transactions.date, endDate)
+        ) as any
+      );
+    }
+
+    const query = db
+      .select({
+        category: transactions.category,
+        total: sum(transactions.amount).as('total')
+      })
+      .from(transactions)
+      .where(and(...whereConditions) as any)
+      .groupBy(transactions.category);
+
+    const results = await query;
+    return results.map(r => ({ category: r.category!, total: r.total || '0' }));
+  }
+
+  async getMonthlySpending(accountId?: string): Promise<{ month: string; total: string }[]> {
+    let baseQuery = db
+      .select({
+        month: sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`.as('month'),
+        total: sum(transactions.amount).as('total')
+      })
+      .from(transactions)
+      .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`);
+
+    if (accountId) {
+      baseQuery = baseQuery.where(eq(transactions.accountId, accountId)) as any;
+    }
+
+    const results = await baseQuery;
+    return results.map(r => ({ month: r.month as string, total: r.total || '0' }));
+  }
+}
+
+export const storage = new DatabaseStorage();

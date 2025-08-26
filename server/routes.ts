@@ -70,8 +70,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
           responseData = await storage.getAccounts();
       }
 
-      // Generate AI response
-      const aiResponse = await generateFinancialResponse(query, responseData, JSON.stringify(contextData));
+      // Generate response server-side based on query type
+      let responseMessage = "";
+      let suggestions: string[] = [];
+
+      switch (query.queryType) {
+        case 'transactions':
+          if (query.parameters.category) {
+            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
+            const count = responseData.length;
+            responseMessage = count > 0 
+              ? `You spent $${total.toFixed(2)} on ${query.parameters.category} across ${count} transaction${count > 1 ? 's' : ''}.`
+              : `You haven't spent anything on ${query.parameters.category} in the selected time period.`;
+            
+            if (count > 0) {
+              suggestions = [
+                `View detailed breakdown of ${query.parameters.category} spending`,
+                "Compare this to your budget",
+                "See spending trends over time"
+              ];
+            }
+          } else if (query.parameters.dateRange) {
+            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
+            responseMessage = `You spent $${total.toFixed(2)} during this period across ${responseData.length} transactions.`;
+          } else {
+            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
+            responseMessage = `Here are your recent transactions. Total: $${total.toFixed(2)} across ${responseData.length} transactions.`;
+          }
+          break;
+
+        case 'goals':
+          if (responseData.length > 0) {
+            const completed = responseData.filter((g: any) => parseFloat(g.currentAmount) >= parseFloat(g.targetAmount)).length;
+            const totalTarget = responseData.reduce((sum: number, g: any) => sum + parseFloat(g.targetAmount), 0);
+            const totalCurrent = responseData.reduce((sum: number, g: any) => sum + parseFloat(g.currentAmount), 0);
+            const overallProgress = ((totalCurrent / totalTarget) * 100).toFixed(1);
+            
+            responseMessage = `You have ${responseData.length} savings goal${responseData.length > 1 ? 's' : ''}. ${completed} completed. Overall progress: ${overallProgress}% of your $${totalTarget.toFixed(2)} target.`;
+            suggestions = ["Add a new savings goal", "Update goal amounts", "See detailed progress"];
+          } else {
+            responseMessage = "You don't have any savings goals set up yet.";
+            suggestions = ["Create your first savings goal", "Set up emergency fund target"];
+          }
+          break;
+
+        case 'budget':
+          responseMessage = `You have ${responseData.length} budget${responseData.length > 1 ? 's' : ''} set up.`;
+          if (contextData && contextData.length > 0) {
+            const budgetVsSpending = responseData.map((budget: any) => {
+              const spending = contextData.find((c: any) => c.category === budget.category);
+              const spentAmount = spending ? parseFloat(spending.total) : 0;
+              const budgetAmount = parseFloat(budget.amount);
+              const percentage = ((spentAmount / budgetAmount) * 100).toFixed(1);
+              return `${budget.category}: ${percentage}% used ($${spentAmount.toFixed(2)} of $${budgetAmount.toFixed(2)})`;
+            });
+            responseMessage += "\n\n" + budgetVsSpending.join("\n");
+          }
+          suggestions = ["Add new budget category", "Adjust budget amounts", "View spending trends"];
+          break;
+
+        default:
+          // For general queries, show account overview
+          const totalBalance = responseData.reduce((sum: number, acc: any) => {
+            const balance = parseFloat(acc.balance);
+            return acc.type === 'expenses' ? sum - Math.abs(balance) : sum + balance;
+          }, 0);
+          responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
+          responseMessage += responseData.map((acc: any) => 
+            `${acc.name}: $${Math.abs(parseFloat(acc.balance)).toFixed(2)}`
+          ).join(", ");
+          suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
+      }
 
       // Save the user message
       await storage.createChatMessage({
@@ -83,16 +152,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Save the AI response
       await storage.createChatMessage({
-        message: aiResponse.answer,
+        message: responseMessage,
         response: null,
         isUser: false,
         queryData: { query, data: responseData }
       });
 
       res.json({
-        message: aiResponse.answer,
-        data: aiResponse.data || responseData,
-        suggestions: aiResponse.suggestions
+        message: responseMessage,
+        data: responseData,
+        suggestions
       });
 
     } catch (error) {

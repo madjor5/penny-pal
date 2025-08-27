@@ -61,8 +61,25 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
       setMessage("");
       onProcessingChange?.(false);
 
-      // Always invalidate to refresh from server and get the complete conversation
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+      // For clear messages, invalidate immediately since we don't want to show optimistic updates
+      if (data.isClearMessage) {
+        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+      } else {
+        // For regular messages, update the cache with the server response to avoid flickering
+        // Remove the temporary message and add the real server response
+        queryClient.setQueryData(['/api/chat/history'], (old: any) => {
+          if (!old) return [];
+          
+          // Remove the temporary optimistic update (last message should be the temp one)
+          const withoutTemp = old.filter((msg: any) => !msg.id?.startsWith('temp-'));
+          
+          // Add the actual server messages if they're not already there
+          return [...withoutTemp];
+        });
+        
+        // Then invalidate to get the complete server state
+        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
+      }
     },
     onError: (error: any) => {
       onProcessingChange?.(false);

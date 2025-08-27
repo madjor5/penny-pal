@@ -39,12 +39,14 @@ export default function AccountSummary({ accounts }: AccountSummaryProps) {
       currency: 'USD'
     }).format(Math.abs(amount));
     
-    return type === 'expenses' && amount > 0 ? `-${formatted}` : formatted;
+    // Only show negative for actual credit card accounts, not general expense/spending accounts
+    return amount < 0 ? `-${formatted}` : formatted;
   };
 
   const getBalanceColor = (balance: string, type: string) => {
     const amount = parseFloat(balance);
-    if (type === 'expenses' && amount > 0) {
+    // Show red for negative balances (actual debt/overspending)
+    if (amount < 0) {
       return 'text-red-600';
     }
     return 'text-gray-900';

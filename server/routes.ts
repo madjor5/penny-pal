@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { parseFinancialQuery, generateFinancialResponse, categorizeTransaction } from "./openai";
-import { insertTransactionSchema, insertBudgetSchema, insertSavingsGoalSchema, insertChatMessageSchema } from "@shared/schema";
+import { insertTransactionSchema, insertBudgetSchema, insertSavingsGoalSchema, insertChatMessageSchema, insertAccountSchema, insertReceiptItemSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -787,6 +787,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Chat history cleared successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to clear chat history" });
+    }
+  });
+
+  // Bulk data upload endpoint
+  app.post("/api/data/bulk-upload", async (req, res) => {
+    try {
+      const { accounts = [], transactions = [], budgets = [], savingsGoals = [], receiptItems = [] } = req.body;
+      
+      const results = {
+        success: true,
+        created: {
+          accounts: 0,
+          transactions: 0, 
+          budgets: 0,
+          savingsGoals: 0,
+          receiptItems: 0
+        },
+        errors: [] as string[]
+      };
+
+      // Create accounts first (needed for foreign keys)
+      const accountMap = new Map<string, string>(); // name -> id mapping
+      for (const accountData of accounts) {
+        try {
+          const validatedAccount = insertAccountSchema.parse(accountData);
+          const createdAccount = await storage.createAccount(validatedAccount);
+          accountMap.set(accountData.name, createdAccount.id);
+          results.created.accounts++;
+        } catch (error) {
+          results.errors.push(`Account "${accountData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create transactions (may reference accounts by name)
+      const transactionMap = new Map<string, string>(); // description -> id mapping
+      for (const transactionData of transactions) {
+        try {
+          // Handle account reference by name
+          if (transactionData.accountName && !transactionData.accountId) {
+            const accountId = accountMap.get(transactionData.accountName);
+            if (!accountId) {
+              results.errors.push(`Transaction "${transactionData.description}": Referenced account "${transactionData.accountName}" not found`);
+              continue;
+            }
+            transactionData.accountId = accountId;
+            delete transactionData.accountName;
+          }
+          
+          const validatedTransaction = insertTransactionSchema.parse(transactionData);
+          const createdTransaction = await storage.createTransaction(validatedTransaction);
+          transactionMap.set(transactionData.description, createdTransaction.id);
+          results.created.transactions++;
+        } catch (error) {
+          results.errors.push(`Transaction "${transactionData.description}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create budgets (may reference accounts by name)
+      for (const budgetData of budgets) {
+        try {
+          // Handle account reference by name
+          if (budgetData.accountName && !budgetData.accountId) {
+            const accountId = accountMap.get(budgetData.accountName);
+            if (accountId) {
+              budgetData.accountId = accountId;
+            }
+            delete budgetData.accountName;
+          }
+          
+          const validatedBudget = insertBudgetSchema.parse(budgetData);
+          await storage.createBudget(validatedBudget);
+          results.created.budgets++;
+        } catch (error) {
+          results.errors.push(`Budget "${budgetData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create savings goals (may reference accounts by name)
+      for (const goalData of savingsGoals) {
+        try {
+          // Handle account reference by name
+          if (goalData.accountName && !goalData.accountId) {
+            const accountId = accountMap.get(goalData.accountName);
+            if (accountId) {
+              goalData.accountId = accountId;
+            }
+            delete goalData.accountName;
+          }
+          
+          const validatedGoal = insertSavingsGoalSchema.parse(goalData);
+          await storage.createSavingsGoal(validatedGoal);
+          results.created.savingsGoals++;
+        } catch (error) {
+          results.errors.push(`Savings Goal "${goalData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create receipt items (may reference transactions by description)
+      for (const receiptData of receiptItems) {
+        try {
+          // Handle transaction reference by description
+          if (receiptData.transactionRef && !receiptData.transactionId) {
+            const transactionId = transactionMap.get(receiptData.transactionRef);
+            if (!transactionId) {
+              results.errors.push(`Receipt Item "${receiptData.itemDescription}": Referenced transaction "${receiptData.transactionRef}" not found`);
+              continue;
+            }
+            receiptData.transactionId = transactionId;
+            delete receiptData.transactionRef;
+          }
+          
+          const validatedReceiptItem = insertReceiptItemSchema.parse(receiptData);
+          await storage.createReceiptItem(validatedReceiptItem);
+          results.created.receiptItems++;
+        } catch (error) {
+          results.errors.push(`Receipt Item "${receiptData.itemDescription}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Set success to false if there were any errors
+      if (results.errors.length > 0) {
+        results.success = false;
+      }
+
+      res.json(results);
+
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to process bulk upload",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

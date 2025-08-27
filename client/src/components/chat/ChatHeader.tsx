@@ -1,4 +1,11 @@
-import { MessageCircle, Settings } from "lucide-react";
+import { MessageCircle, Settings, Upload } from "lucide-react";
+import { Link } from "wouter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function ChatHeader() {
   return (
@@ -18,12 +25,24 @@ export default function ChatHeader() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button 
-            className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"
-            data-testid="button-settings"
-          >
-            <Settings className="text-gray-600" size={14} />
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button 
+                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+                data-testid="button-settings"
+              >
+                <Settings className="text-gray-600" size={14} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href="/data-upload" className="flex items-center gap-2" data-testid="link-data-upload">
+                  <Upload className="h-4 w-4" />
+                  Data Upload
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

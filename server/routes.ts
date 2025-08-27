@@ -270,31 +270,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const searchTerm = query.parameters.searchTerm;
             
             if (query.parameters.searchType === 'store') {
-              // Handle store/transaction search results
-              const total = responseData.reduce((sum: number, transaction: any) => sum + Math.abs(parseFloat(transaction.amount)), 0);
+              // Check if user specifically asked for receipts
+              const userAskedForReceipts = message.toLowerCase().includes('receipt');
               
-              if (query.parameters.isLatest) {
-                // For latest store visit, show transaction details
-                const transaction = responseData[0];
-                const transactionDate = new Date(transaction.date).toLocaleDateString();
-                responseMessage = `Your last visit to ${searchTerm} was on ${transactionDate}. You spent $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} on "${transaction.description}".`;
-                suggestions = ["View receipt from this transaction", "See all visits to this store", "Compare spending at different stores"];
-              } else {
-                responseMessage = `Found ${responseData.length} transaction${responseData.length > 1 ? 's' : ''} at "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
+              if (userAskedForReceipts && !query.parameters.isLatest) {
+                // Show detailed receipts for all transactions from this store
+                const total = responseData.reduce((sum: number, transaction: any) => sum + Math.abs(parseFloat(transaction.amount)), 0);
+                responseMessage = `Found ${responseData.length} transaction${responseData.length > 1 ? 's' : ''} at "${searchTerm}". Total spent: $${total.toFixed(2)}.\n\n`;
                 
-                // Show top 3 transactions as examples
-                if (responseData.length > 0) {
-                  const topTransactions = responseData.slice(0, 3).map((transaction: any) => 
-                    `• ${new Date(transaction.date).toLocaleDateString()}: $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} - ${transaction.description}`
-                  );
-                  responseMessage += "\n\nRecent visits:\n" + topTransactions.join("\n");
+                // Show each receipt from this store
+                let receiptCount = 0;
+                for (const transaction of responseData) {
+                  receiptCount++;
                   
-                  if (responseData.length > 3) {
-                    responseMessage += `\n... and ${responseData.length - 3} more visit${responseData.length - 3 > 1 ? 's' : ''}`;
-                  }
+                  // Get the full receipt for this transaction
+                  const fullReceipt = await storage.getReceiptItems(transaction.id);
+                  
+                  if (fullReceipt.length === 0) continue;
+                  
+                  const receiptTotal = fullReceipt.reduce((sum: number, receiptItem: any) => sum + Math.abs(parseFloat(receiptItem.itemAmount)), 0);
+                  const transactionDate = new Date(transaction.date);
+                  const storeName = transaction.merchant || "STORE";
+                  const receiptDate = transactionDate.toLocaleDateString();
+                  const receiptTime = transactionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  
+                  responseMessage += `**Receipt #${receiptCount} - ${receiptDate} at ${storeName}**\n\n`;
+                  
+                  // Format as classical paper receipt
+                  const receiptWidth = 32;
+                  const centerText = (text: string) => {
+                    const padding = Math.max(0, receiptWidth - text.length);
+                    const leftPad = Math.floor(padding / 2);
+                    return ' '.repeat(leftPad) + text;
+                  };
+                  
+                  const rightAlign = (left: string, right: string) => {
+                    const maxLeft = receiptWidth - right.length - 1;
+                    const truncatedLeft = left.length > maxLeft ? left.substring(0, maxLeft - 3) + '...' : left;
+                    const spaces = receiptWidth - truncatedLeft.length - right.length;
+                    return truncatedLeft + ' '.repeat(Math.max(1, spaces)) + right;
+                  };
+                  
+                  responseMessage += "```\n";
+                  responseMessage += centerText(storeName.toUpperCase()) + "\n";
+                  responseMessage += centerText("RECEIPT") + "\n";
+                  responseMessage += "=".repeat(receiptWidth) + "\n";
+                  responseMessage += centerText(receiptDate) + "\n";
+                  responseMessage += centerText(receiptTime) + "\n";
+                  responseMessage += "-".repeat(receiptWidth) + "\n\n";
+                  
+                  // Items
+                  fullReceipt.forEach((receiptItem: any) => {
+                    const price = `$${Math.abs(parseFloat(receiptItem.itemAmount)).toFixed(2)}`;
+                    const itemLine = rightAlign(receiptItem.itemDescription, price);
+                    responseMessage += itemLine + "\n";
+                  });
+                  
+                  responseMessage += "\n" + "-".repeat(receiptWidth) + "\n";
+                  responseMessage += rightAlign("TOTAL", `$${receiptTotal.toFixed(2)}`) + "\n";
+                  responseMessage += "=".repeat(receiptWidth) + "\n";
+                  responseMessage += centerText(`${fullReceipt.length} ITEM${fullReceipt.length > 1 ? 'S' : ''}`) + "\n";
+                  responseMessage += "```\n\n";
                 }
                 
-                suggestions = ["View receipts from these visits", "See spending trends at this store", "Compare with other stores"];
+                if (receiptCount > 1) {
+                  responseMessage += `**Summary**: Found receipts from ${receiptCount} different visits to ${searchTerm}.`;
+                }
+                
+                suggestions = ["View spending trends at this store", "Compare with other stores", "Set budget alerts"];
+                
+              } else {
+                // Handle store/transaction search results (original logic)
+                const total = responseData.reduce((sum: number, transaction: any) => sum + Math.abs(parseFloat(transaction.amount)), 0);
+                
+                if (query.parameters.isLatest) {
+                  // For latest store visit, show transaction details
+                  const transaction = responseData[0];
+                  const transactionDate = new Date(transaction.date).toLocaleDateString();
+                  responseMessage = `Your last visit to ${searchTerm} was on ${transactionDate}. You spent $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} on "${transaction.description}".`;
+                  suggestions = ["View receipt from this transaction", "See all visits to this store", "Compare spending at different stores"];
+                } else {
+                  responseMessage = `Found ${responseData.length} transaction${responseData.length > 1 ? 's' : ''} at "${searchTerm}". Total spent: $${total.toFixed(2)}.`;
+                  
+                  // Show top 3 transactions as examples
+                  if (responseData.length > 0) {
+                    const topTransactions = responseData.slice(0, 3).map((transaction: any) => 
+                      `• ${new Date(transaction.date).toLocaleDateString()}: $${Math.abs(parseFloat(transaction.amount)).toFixed(2)} - ${transaction.description}`
+                    );
+                    responseMessage += "\n\nRecent visits:\n" + topTransactions.join("\n");
+                    
+                    if (responseData.length > 3) {
+                      responseMessage += `\n... and ${responseData.length - 3} more visit${responseData.length - 3 > 1 ? 's' : ''}`;
+                    }
+                  }
+                  
+                  suggestions = ["View receipts from these visits", "See spending trends at this store", "Compare with other stores"];
+                }
               }
             } else {
               // Handle product/receipt item search results

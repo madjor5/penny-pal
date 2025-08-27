@@ -49,9 +49,15 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         createdAt: new Date().toISOString()
       };
 
-      queryClient.setQueryData(['/api/chat/history'], (old: any) => 
-        [...(old || []), tempUserMessage]
-      );
+      queryClient.setQueryData(['/api/chat/history'], (old: any) => {
+        const currentHistory = old || [];
+        // Only add if not already present (avoid duplicates)
+        const alreadyExists = currentHistory.some((msg: any) => 
+          msg.message === message && msg.isUser && 
+          (new Date().getTime() - new Date(msg.createdAt || 0).getTime()) < 5000 // Within 5 seconds
+        );
+        return alreadyExists ? currentHistory : [...currentHistory, tempUserMessage];
+      });
 
       const response = await apiRequest('POST', '/api/chat', { message, debug: debugMode });
       const responseData = await response.json();
@@ -61,25 +67,8 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
       setMessage("");
       onProcessingChange?.(false);
 
-      // For clear messages, invalidate immediately since we don't want to show optimistic updates
-      if (data.isClearMessage) {
-        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
-      } else {
-        // For regular messages, update the cache with the server response to avoid flickering
-        // Remove the temporary message and add the real server response
-        queryClient.setQueryData(['/api/chat/history'], (old: any) => {
-          if (!old) return [];
-          
-          // Remove the temporary optimistic update (last message should be the temp one)
-          const withoutTemp = old.filter((msg: any) => !msg.id?.startsWith('temp-'));
-          
-          // Add the actual server messages if they're not already there
-          return [...withoutTemp];
-        });
-        
-        // Then invalidate to get the complete server state
-        queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
-      }
+      // Always invalidate to refresh from server and get the complete conversation
+      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
     },
     onError: (error: any) => {
       onProcessingChange?.(false);

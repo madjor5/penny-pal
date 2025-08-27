@@ -149,13 +149,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Handle account search results - if account name was specified but not found or ambiguous
       if (query.parameters.accountName && (!accountSearchResult.found || accountSearchResult.matches.length > 1)) {
+        // Save the user message first before any early returns
+        await storage.createChatMessage({
+          message,
+          response: null,
+          isUser: true,
+          queryData: null
+        });
+
         if (accountSearchResult.matches.length === 0) {
           // No accounts found
           const allAccounts = debugInfo.accountMatch?.allAccounts || [];
           const accountList = allAccounts.map((acc: any) => `• ${acc.name}`).join('\n');
           
+          const responseMessage = `I couldn't find an account matching "${query.parameters.accountName}". Here are your available accounts:\n\n${accountList}\n\nPlease specify which account you'd like to see transactions for.`;
+          
+          // Save the AI response
+          await storage.createChatMessage({
+            message: responseMessage,
+            response: null,
+            isUser: false,
+            queryData: { query, debug: debugInfo }
+          });
+          
           return res.json({
-            message: `I couldn't find an account matching "${query.parameters.accountName}". Here are your available accounts:\n\n${accountList}\n\nPlease specify which account you'd like to see transactions for.`,
+            message: responseMessage,
             data: null,
             debug: debug ? debugInfo : null
           });
@@ -163,8 +181,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Multiple accounts found - ask for clarification
           const matchList = accountSearchResult.matches.map((acc: any) => `• ${acc.name}`).join('\n');
           
+          const responseMessage = `I found multiple accounts matching "${query.parameters.accountName}":\n\n${matchList}\n\nWhich account did you mean? Please be more specific.`;
+          
+          // Save the AI response
+          await storage.createChatMessage({
+            message: responseMessage,
+            response: null,
+            isUser: false,
+            queryData: { query, debug: debugInfo }
+          });
+          
           return res.json({
-            message: `I found multiple accounts matching "${query.parameters.accountName}":\n\n${matchList}\n\nWhich account did you mean? Please be more specific.`,
+            message: responseMessage,
             data: null,
             debug: debug ? debugInfo : null
           });

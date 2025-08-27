@@ -923,6 +923,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Account-specific transaction upload endpoint
+  app.post("/api/data/account-upload", async (req, res) => {
+    try {
+      const { accountId, transactions = [] } = req.body;
+      
+      if (!accountId) {
+        return res.status(400).json({
+          success: false,
+          error: "Account ID is required for account-specific uploads"
+        });
+      }
+
+      const results = {
+        success: true,
+        created: {
+          accounts: 0,
+          transactions: 0,
+          budgets: 0,
+          savingsGoals: 0,
+          receiptItems: 0
+        },
+        errors: [] as string[]
+      };
+
+      // Process each transaction with its receipt items
+      for (const transactionData of transactions) {
+        try {
+          // Prepare transaction data with the selected account
+          const transactionToCreate = {
+            accountId,
+            description: `${transactionData.merchant} - ${transactionData.category}`,
+            amount: transactionData.amount,
+            category: transactionData.category,
+            merchant: transactionData.merchant,
+            date: transactionData.date
+          };
+          
+          const validatedTransaction = insertTransactionSchema.parse(transactionToCreate);
+          const createdTransaction = await storage.createTransaction(validatedTransaction);
+          results.created.transactions++;
+
+          // Process receipt items for this transaction
+          if (transactionData.receiptItems && Array.isArray(transactionData.receiptItems)) {
+            for (const receiptItem of transactionData.receiptItems) {
+              try {
+                const receiptToCreate = {
+                  transactionId: createdTransaction.id,
+                  itemDescription: receiptItem.description,
+                  itemAmount: receiptItem.price,
+                  itemCategory: transactionData.category, // Use transaction category as default
+                  quantity: receiptItem.amount || "1"
+                };
+                
+                const validatedReceiptItem = insertReceiptItemSchema.parse(receiptToCreate);
+                await storage.createReceiptItem(validatedReceiptItem);
+                results.created.receiptItems++;
+              } catch (error) {
+                results.errors.push(`Receipt Item "${receiptItem.description}" in transaction "${transactionData.merchant}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+          }
+        } catch (error) {
+          results.errors.push(`Transaction "${transactionData.merchant}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Set success to false if there were any errors
+      if (results.errors.length > 0) {
+        results.success = false;
+      }
+
+      res.json(results);
+
+    } catch (error) {
+      console.error('Account upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to process account-specific upload",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

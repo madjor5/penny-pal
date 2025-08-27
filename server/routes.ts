@@ -582,7 +582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
           responseMessage += responseData.map((acc: any) => {
             const balance = parseFloat(acc.balance) || 0;
-            return `${acc.name}: $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
+            return `${acc.name} (${acc.type}): $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
           }).join(", ");
           suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
       }

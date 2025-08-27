@@ -69,6 +69,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Execute the appropriate query based on the parsed intent
       let dbQueries: string[] = [];
       
+      // Helper function to find account ID by name
+      let targetAccountId: string | undefined = undefined;
+      if (query.parameters.accountName) {
+        try {
+          const accounts = await storage.getAccounts();
+          const matchingAccount = accounts.find(account => 
+            account.name.toLowerCase().includes(query.parameters.accountName!.toLowerCase()) ||
+            query.parameters.accountName!.toLowerCase().includes(account.name.toLowerCase().split(' ')[0].toLowerCase())
+          );
+          if (matchingAccount) {
+            targetAccountId = matchingAccount.id;
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              foundAccount: matchingAccount.name,
+              accountId: targetAccountId
+            };
+          }
+        } catch (error) {
+          console.error('Error finding account by name:', error);
+        }
+      }
+      
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category && query.parameters.dateRange) {
@@ -89,20 +111,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range, falling back to category only:', query.parameters.dateRange);
-                dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to invalid dates`);
-                responseData = await storage.getTransactionsByCategory(query.parameters.category);
+                dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'}) - fallback due to invalid dates`);
+                responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
               } else {
-                dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}')`);
-                responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate);
+                dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}', ${targetAccountId || 'undefined'})`);
+                responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate, targetAccountId);
               }
             } catch (error) {
               console.error('Date parsing error, falling back to category only:', error);
-              dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to date parsing error`);
-              responseData = await storage.getTransactionsByCategory(query.parameters.category);
+              dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'}) - fallback due to date parsing error`);
+              responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
             }
           } else if (query.parameters.category) {
-            dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
-            responseData = await storage.getTransactionsByCategory(query.parameters.category);
+            dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'})`);
+            responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
           } else if (query.parameters.dateRange) {
             try {
               const startDate = new Date(query.parameters.dateRange.start);
@@ -111,20 +133,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range:', query.parameters.dateRange);
-                dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
-                responseData = await storage.getTransactions(undefined, 20);
+                dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to invalid dates`);
+                responseData = await storage.getTransactions(targetAccountId, 20);
               } else {
-                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);                
-                responseData = await storage.getTransactionsByDateRange(startDate, endDate);
+                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}', ${targetAccountId || 'undefined'})`);                
+                responseData = await storage.getTransactionsByDateRange(startDate, endDate, targetAccountId);
               }
             } catch (error) {
               console.error('Date parsing error:', error);
-              dbQueries.push(`getTransactions(undefined, 20) - fallback due to date parsing error`);
-              responseData = await storage.getTransactions(undefined, 20);
+              dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to date parsing error`);
+              responseData = await storage.getTransactions(targetAccountId, 20);
             }
           } else {
-            dbQueries.push(`getTransactions(undefined, 20)`);
-            responseData = await storage.getTransactions(undefined, 20);
+            // If we have a specific account, query that account; otherwise get recent transactions  
+            dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20)`);
+            responseData = await storage.getTransactions(targetAccountId, 20);
           }
           
           // Filter by transaction direction if specified

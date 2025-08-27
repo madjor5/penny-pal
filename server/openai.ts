@@ -14,6 +14,7 @@ export interface FinancialQuery {
       end: string;
     };
     accountType?: string;
+    accountName?: string; // For specific account names (e.g., "Angelica", "John's", "Household Budget")
     amount?: number;
     timeframe?: string;
     searchTerm?: string; // For semantic search
@@ -41,7 +42,7 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           Parse the user's message and extract:
           - intent: what they want to know
-          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection
+          - parameters: relevant filters like category, date range, account type, account name, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection
           - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
           
           For transactionDirection parameter, determine if the user is asking about:
@@ -56,10 +57,18 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           For date ranges, use ISO date strings. For relative dates like "this month" or "last week", calculate the actual dates.
           Account types can be: 'budget', 'expenses', 'savings'
           
+          For account names, extract specific account references from the user's message:
+          - "Angelica's account", "Angelica's", "Angelica" -> accountName: "Angelica"
+          - "John's account", "John's credit card" -> accountName: "John"
+          - "household budget", "main budget" -> accountName: "Household Budget"
+          - "emergency savings", "vacation savings" -> accountName based on the specific savings mentioned
+          
           IMPORTANT: Positive amounts represent incoming money/income. Negative amounts represent outgoing money/spending.
           
           Examples:
           - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month, transactionDirection: 'outgoing'
+          - "Show transactions on Angelica's account" -> queryType: 'transactions', accountName: 'Angelica'
+          - "What did John spend on?" -> queryType: 'transactions', accountName: 'John', transactionDirection: 'outgoing'
           - "List all incoming transactions" -> queryType: 'transactions', transactionDirection: 'incoming'
           - "Show my income this month" -> queryType: 'transactions', dateRange: current month, transactionDirection: 'incoming'
           - "What money did I receive last week?" -> queryType: 'transactions', dateRange: last week, transactionDirection: 'incoming'

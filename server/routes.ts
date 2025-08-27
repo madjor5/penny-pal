@@ -957,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             amount: transactionData.amount,
             category: transactionData.category,
             merchant: transactionData.merchant,
-            date: transactionData.date
+            date: new Date(transactionData.date)
           };
           
           const validatedTransaction = insertTransactionSchema.parse(transactionToCreate);

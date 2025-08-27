@@ -1,6 +1,7 @@
 import { Bot, User } from "lucide-react";
 import SpendingBreakdown from "@/components/financial/SpendingBreakdown";
 import SavingsGoals from "@/components/financial/SavingsGoals";
+import AccountSummary from "@/components/financial/AccountSummary";
 
 interface MessageBubbleProps {
   message: string;
@@ -87,6 +88,11 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
         {/* Render data cards based on content */}
         {data && data.length > 0 && (
           <>
+            {/* Check if data contains accounts for account overview */}
+            {data[0]?.balance !== undefined && data[0]?.type && data[0]?.name && (
+              <AccountSummary accounts={data} data-testid="account-summary" />
+            )}
+            
             {/* Check if data contains transactions for spending breakdown */}
             {data[0]?.amount && data[0]?.category && (
               <SpendingBreakdown transactions={data} data-testid="spending-breakdown" />

@@ -670,6 +670,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/accounts/:id/recalculate-balance", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updatedAccount = await storage.recalculateAccountBalance(id);
+      res.json({ 
+        success: true, 
+        account: updatedAccount,
+        message: `Account balance recalculated successfully. New balance: $${updatedAccount.balance}`
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to recalculate account balance" });
+    }
+  });
+
+  app.post("/api/accounts/recalculate-all-balances", async (req, res) => {
+    try {
+      const updatedAccounts = await storage.recalculateAllAccountBalances();
+      res.json({ 
+        success: true, 
+        accounts: updatedAccounts,
+        message: `Successfully recalculated balances for ${updatedAccounts.length} accounts`
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to recalculate account balances" });
+    }
+  });
+
   app.get("/api/accounts/:id", async (req, res) => {
     try {
       const account = await storage.getAccount(req.params.id);
@@ -837,7 +864,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           savingsGoals: 0,
           receiptItems: 0
         },
-        errors: [] as string[]
+        errors: [] as string[],
+        message: undefined as string | undefined
       };
 
       // Create accounts first (needed for foreign keys)
@@ -944,6 +972,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.success = false;
       }
 
+      // Recalculate all account balances after bulk upload
+      if (results.created.transactions > 0 || results.created.accounts > 0) {
+        try {
+          await storage.recalculateAllAccountBalances();
+          results.message = `Bulk upload completed successfully. ${results.created.transactions} transactions created and all account balances updated.`;
+        } catch (error) {
+          results.errors.push(`Warning: Failed to recalculate account balances: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
       res.json(results);
 
     } catch (error) {
@@ -977,7 +1015,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           savingsGoals: 0,
           receiptItems: 0
         },
-        errors: [] as string[]
+        errors: [] as string[],
+        message: undefined as string | undefined
       };
 
       // Process each transaction with its receipt items
@@ -1025,6 +1064,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set success to false if there were any errors
       if (results.errors.length > 0) {
         results.success = false;
+      }
+
+      // Recalculate account balance after account-specific upload
+      if (results.created.transactions > 0) {
+        try {
+          await storage.recalculateAccountBalance(accountId);
+          results.message = `Account upload completed successfully. ${results.created.transactions} transactions created and account balance updated.`;
+        } catch (error) {
+          results.errors.push(`Warning: Failed to recalculate account balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
       }
 
       res.json(results);

@@ -28,6 +28,9 @@ export interface IStorage {
   getAccount(id: string): Promise<Account | undefined>;
   createAccount(account: InsertAccount): Promise<Account>;
   updateAccountBalance(id: string, balance: string): Promise<Account>;
+  calculateAccountBalance(accountId: string): Promise<string>;
+  recalculateAccountBalance(accountId: string): Promise<Account>;
+  recalculateAllAccountBalances(): Promise<Account[]>;
 
   // Transactions
   getTransactions(accountId?: string, limit?: number): Promise<Transaction[]>;
@@ -169,6 +172,10 @@ export class DatabaseStorage implements IStorage {
         embedding: embedding
       })
       .returning();
+    
+    // Automatically update the account balance after creating the transaction
+    await this.recalculateAccountBalance(insertTransaction.accountId);
+    
     return transaction;
   }
 
@@ -257,6 +264,37 @@ export class DatabaseStorage implements IStorage {
 
   async clearChatMessages(): Promise<void> {
     await db.delete(chatMessages);
+  }
+
+  // Balance calculation
+  async calculateAccountBalance(accountId: string): Promise<string> {
+    const accountTransactions = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.accountId, accountId));
+    
+    const totalBalance = accountTransactions.reduce((sum, transaction) => {
+      return sum + parseFloat(transaction.amount);
+    }, 0);
+    
+    return totalBalance.toFixed(2);
+  }
+
+  async recalculateAccountBalance(accountId: string): Promise<Account> {
+    const newBalance = await this.calculateAccountBalance(accountId);
+    return await this.updateAccountBalance(accountId, newBalance);
+  }
+
+  async recalculateAllAccountBalances(): Promise<Account[]> {
+    const allAccounts = await this.getAccounts();
+    const updatedAccounts = [];
+    
+    for (const account of allAccounts) {
+      const updatedAccount = await this.recalculateAccountBalance(account.id);
+      updatedAccounts.push(updatedAccount);
+    }
+    
+    return updatedAccounts;
   }
 
   // Analytics

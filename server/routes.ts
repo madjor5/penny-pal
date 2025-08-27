@@ -126,6 +126,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             dbQueries.push(`getTransactions(undefined, 20)`);
             responseData = await storage.getTransactions(undefined, 20);
           }
+          
+          // Filter by transaction direction if specified
+          if (query.parameters.transactionDirection) {
+            if (query.parameters.transactionDirection === 'incoming') {
+              responseData = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            } else if (query.parameters.transactionDirection === 'outgoing') {
+              responseData = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            }
+            // 'all' or undefined means no filtering
+          }
           break;
 
         case 'budget':
@@ -213,11 +223,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category) {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
             const count = responseData.length;
-            responseMessage = count > 0 
-              ? `You spent $${total.toFixed(2)} on ${query.parameters.category} across ${count} transaction${count > 1 ? 's' : ''}.`
-              : `You haven't spent anything on ${query.parameters.category} in the selected time period.`;
+            
+            if (count > 0) {
+              let parts = [];
+              if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+              if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+              responseMessage = `For ${query.parameters.category}: ${parts.join(' and ')} across ${count} transaction${count > 1 ? 's' : ''}.`;
+            } else {
+              responseMessage = `No transactions found for ${query.parameters.category} in the selected time period.`;
+            }
             
             if (count > 0) {
               suggestions = [
@@ -227,11 +246,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ];
             }
           } else if (query.parameters.dateRange) {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
-            responseMessage = `You spent $${total.toFixed(2)} during this period across ${responseData.length} transactions.`;
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
+            
+            let parts = [];
+            if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+            if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+            responseMessage = `During this period you ${parts.join(' and ')} across ${responseData.length} transactions.`;
           } else {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
-            responseMessage = `Here are your recent transactions. Total: $${total.toFixed(2)} across ${responseData.length} transactions.`;
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
+            
+            let parts = [];
+            if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+            if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+            responseMessage = `Here are your recent transactions. You ${parts.join(' and ')} across ${responseData.length} transactions.`;
           }
           break;
 

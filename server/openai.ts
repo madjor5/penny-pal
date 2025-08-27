@@ -19,6 +19,7 @@ export interface FinancialQuery {
     searchTerm?: string; // For semantic search
     isLatest?: boolean; // For latest/last visit queries
     searchType?: 'product' | 'store'; // Whether searching for products or stores
+    transactionDirection?: 'incoming' | 'outgoing' | 'all'; // Direction of money flow
   };
   queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt';
 }
@@ -40,8 +41,13 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           Parse the user's message and extract:
           - intent: what they want to know
-          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest, searchType
+          - parameters: relevant filters like category, date range, account type, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection
           - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
+          
+          For transactionDirection parameter, determine if the user is asking about:
+          - 'incoming': income, deposits, received money (positive amounts)
+          - 'outgoing': expenses, spending, payments (negative amounts) 
+          - 'all': both incoming and outgoing transactions (default)
           
           For searchType parameter, determine if the search is for:
           - 'product': searching for specific items/products (e.g., "burger buns", "coffee", "milk")
@@ -50,10 +56,15 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           For date ranges, use ISO date strings. For relative dates like "this month" or "last week", calculate the actual dates.
           Account types can be: 'budget', 'expenses', 'savings'
           
+          IMPORTANT: Positive amounts represent incoming money/income. Negative amounts represent outgoing money/spending.
+          
           Examples:
-          - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month
+          - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month, transactionDirection: 'outgoing'
+          - "List all incoming transactions" -> queryType: 'transactions', transactionDirection: 'incoming'
+          - "Show my income this month" -> queryType: 'transactions', dateRange: current month, transactionDirection: 'incoming'
+          - "What money did I receive last week?" -> queryType: 'transactions', dateRange: last week, transactionDirection: 'incoming'
           - "How am I doing with my savings goals?" -> queryType: 'goals'
-          - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week
+          - "What did I spend on dining out last week?" -> queryType: 'transactions', category: 'dining', dateRange: last week, transactionDirection: 'outgoing'
           - "How much did I spend on coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', searchType: 'product'
           - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks', searchType: 'store'
           - "Show me my Costco transactions" -> queryType: 'semantic_search', searchTerm: 'Costco', searchType: 'store'

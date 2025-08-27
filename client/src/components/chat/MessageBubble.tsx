@@ -27,63 +27,66 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
       <div className="w-8 h-8 bg-finance-green rounded-full flex items-center justify-center flex-shrink-0">
         <Bot className="text-white" size={14} />
       </div>
-      <div className="space-y-3 max-w-xs">
-        <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
-{(() => {
-            // Check if message contains a receipt code block
-            if (message.includes('```') && message.includes('RECEIPT')) {
-              // Find the start and end of the code block
-              const codeBlockStart = message.indexOf('```');
-              const codeBlockEnd = message.lastIndexOf('```') + 3;
-              
-              if (codeBlockStart !== -1 && codeBlockEnd > codeBlockStart) {
-                const beforeReceipt = message.substring(0, codeBlockStart);
-                const receiptBlock = message.substring(codeBlockStart, codeBlockEnd);
-                const afterReceipt = message.substring(codeBlockEnd);
+      <div className="space-y-3 max-w-md">
+        {/* Only show text bubble if we're not displaying account data */}
+        {!(data && data.length > 0 && data[0]?.balance !== undefined && data[0]?.type && data[0]?.name) && (
+          <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
+            {(() => {
+              // Check if message contains a receipt code block
+              if (message.includes('```') && message.includes('RECEIPT')) {
+                // Find the start and end of the code block
+                const codeBlockStart = message.indexOf('```');
+                const codeBlockEnd = message.lastIndexOf('```') + 3;
                 
-                return (
-                  <div className="space-y-3">
-                    {beforeReceipt.trim() && (
-                      <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
-                    )}
-                    <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-                      {receiptBlock.replace(/```/g, '').split('\n').map((line, index) => {
-                        // Check if line should be bold (marked with **)
-                        if (line.includes('**')) {
-                          const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                          return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
-                        }
-                        return <div key={index}>{line}</div>;
-                      })}
+                if (codeBlockStart !== -1 && codeBlockEnd > codeBlockStart) {
+                  const beforeReceipt = message.substring(0, codeBlockStart);
+                  const receiptBlock = message.substring(codeBlockStart, codeBlockEnd);
+                  const afterReceipt = message.substring(codeBlockEnd);
+                  
+                  return (
+                    <div className="space-y-3">
+                      {beforeReceipt.trim() && (
+                        <p className="text-sm text-gray-800" data-testid="text-ai-message">{beforeReceipt.trim()}</p>
+                      )}
+                      <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                        {receiptBlock.replace(/```/g, '').split('\n').map((line, index) => {
+                          // Check if line should be bold (marked with **)
+                          if (line.includes('**')) {
+                            const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                            return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
+                          }
+                          return <div key={index}>{line}</div>;
+                        })}
+                      </div>
+                      {afterReceipt.trim() && (
+                        <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
+                      )}
                     </div>
-                    {afterReceipt.trim() && (
-                      <p className="text-sm text-gray-800" data-testid="text-ai-message">{afterReceipt.trim()}</p>
-                    )}
+                  );
+                }
+              }
+              
+              // Legacy handling for receipt-only messages
+              if (message.startsWith('```') && message.includes('RECEIPT')) {
+                return (
+                  <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
+                    {message.replace(/```/g, '').split('\n').map((line, index) => {
+                      // Check if line should be bold (marked with **)
+                      if (line.includes('**')) {
+                        const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
+                      }
+                      return <div key={index}>{line}</div>;
+                    })}
                   </div>
                 );
               }
-            }
-            
-            // Legacy handling for receipt-only messages
-            if (message.startsWith('```') && message.includes('RECEIPT')) {
-              return (
-                <div className="text-xs font-mono text-gray-800 whitespace-pre-wrap bg-gray-50 p-3 rounded border" data-testid="text-receipt-message">
-                  {message.replace(/```/g, '').split('\n').map((line, index) => {
-                    // Check if line should be bold (marked with **)
-                    if (line.includes('**')) {
-                      const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                      return <div key={index} dangerouslySetInnerHTML={{ __html: boldLine }} />;
-                    }
-                    return <div key={index}>{line}</div>;
-                  })}
-                </div>
-              );
-            }
-            
-            // Default text rendering
-            return <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>;
-          })()}
-        </div>
+              
+              // Default text rendering
+              return <p className="text-sm text-gray-800" data-testid="text-ai-message">{message}</p>;
+            })()}
+          </div>
+        )}
         
         {/* Render data cards based on content */}
         {data && data.length > 0 && (

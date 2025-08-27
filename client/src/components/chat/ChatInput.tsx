@@ -29,10 +29,10 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         'start fresh',
         'new conversation'
       ];
-      
+
       const messageText = message.toLowerCase().trim();
       const shouldClearChat = clearChatPhrases.some(phrase => messageText.includes(phrase));
-      
+
       if (shouldClearChat) {
         // Don't add optimistic update for clear messages, just send the request
         const response = await apiRequest('POST', '/api/chat', { message, debug: debugMode });
@@ -48,7 +48,7 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         queryData: null,
         createdAt: new Date().toISOString()
       };
-      
+
       queryClient.setQueryData(['/api/chat/history'], (old: any) => 
         [...(old || []), tempUserMessage]
       );
@@ -58,43 +58,11 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
       return responseData;
     },
     onSuccess: (data) => {
-      if (data.isClearMessage) {
-        // For clear messages, clear the cache and add only the AI confirmation
-        queryClient.setQueryData(['/api/chat/history'], []);
-        const confirmationMessage = {
-          id: `ai-${Date.now()}`,
-          message: data.message,
-          isUser: false,
-          queryData: { 
-            data: data.data,
-            debug: data.debug 
-          },
-          createdAt: new Date().toISOString()
-        };
-        queryClient.setQueryData(['/api/chat/history'], [confirmationMessage]);
-      } else {
-        // For regular messages, add the AI response
-        const aiMessage = {
-          id: `ai-${Date.now()}`,
-          message: data.message,
-          isUser: false,
-          queryData: { 
-            data: data.data,
-            debug: data.debug 
-          },
-          createdAt: new Date().toISOString()
-        };
-        
-        queryClient.setQueryData(['/api/chat/history'], (old: any) => 
-          [...(old || []), aiMessage]
-        );
-      }
-      
-      // Always invalidate to ensure consistency with server
-      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
-      
-      setMessage('');
+      setMessage("");
       onProcessingChange?.(false);
+
+      // Always invalidate to refresh from server and get the complete conversation
+      queryClient.invalidateQueries({ queryKey: ['/api/chat/history'] });
     },
     onError: (error: any) => {
       onProcessingChange?.(false);
@@ -150,7 +118,7 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
         >
           <Bug size={16} />
         </button>
-        
+
         <div className="flex-1 relative">
           <input 
             type="text" 
@@ -175,7 +143,7 @@ export default function ChatInput({ message, setMessage, onToggleQuickActions, o
             )}
           </button>
         </div>
-        
+
         <button 
           className="w-10 h-10 bg-finance-blue rounded-full flex items-center justify-center"
           onClick={handleVoiceInput}

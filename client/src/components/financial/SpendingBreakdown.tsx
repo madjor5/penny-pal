@@ -1,5 +1,7 @@
 import { ShoppingCart, Store, Receipt } from "lucide-react";
 import { Transaction } from "@shared/schema";
+import { useState } from "react";
+import ReceiptModal from "@/components/ui/ReceiptModal";
 
 interface SpendingBreakdownProps {
   transactions: Transaction[];
@@ -12,6 +14,12 @@ export default function SpendingBreakdown({
   budgetAmount = 0, 
   category = "Spending" 
 }: SpendingBreakdownProps) {
+  const [selectedTransaction, setSelectedTransaction] = useState<{
+    id: string;
+    merchant?: string;
+    date: string;
+  } | null>(null);
+  
   const totalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
   const budgetUsed = budgetAmount > 0 ? (totalSpent / budgetAmount) * 100 : 0;
 
@@ -93,16 +101,33 @@ export default function SpendingBreakdown({
               <p className="text-sm font-semibold text-gray-900" data-testid={`text-amount-${index}`}>
                 {formatCurrency(parseFloat(transaction.amount))}
               </p>
-              {transaction.receiptData && (
-                <button className="text-xs text-finance-blue" data-testid={`button-receipt-${index}`}>
-                  <Receipt className="inline mr-1" size={10} />
-                  Receipt
-                </button>
-              )}
+              <button 
+                className="text-xs text-finance-blue hover:text-finance-blue-dark transition-colors" 
+                onClick={() => setSelectedTransaction({
+                  id: transaction.id,
+                  merchant: transaction.merchant || undefined,
+                  date: transaction.date.toString()
+                })}
+                data-testid={`button-receipt-${index}`}
+              >
+                <Receipt className="inline mr-1" size={10} />
+                Receipt
+              </button>
             </div>
           </div>
         ))}
       </div>
+      
+      {/* Receipt Modal */}
+      {selectedTransaction && (
+        <ReceiptModal
+          isOpen={!!selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+          transactionId={selectedTransaction.id}
+          merchantName={selectedTransaction.merchant || "STORE"}
+          transactionDate={selectedTransaction.date}
+        />
+      )}
     </div>
   );
 }

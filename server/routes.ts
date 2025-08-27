@@ -649,6 +649,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Receipt endpoints
+  app.get("/api/receipts/:transactionId", async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+      const receiptItems = await storage.getReceiptItems(transactionId);
+      res.json(receiptItems);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch receipt items" });
+    }
+  });
+
   // Transaction endpoints
   app.get("/api/transactions", async (req, res) => {
     try {

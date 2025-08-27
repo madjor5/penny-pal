@@ -331,7 +331,7 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
 
-  async searchReceiptItemsBySemantic(searchTerm: string, threshold: number = 0.3): Promise<ReceiptItem[]> {
+  async searchReceiptItemsBySemantic(searchTerm: string, threshold: number = 0.5): Promise<ReceiptItem[]> {
     // Generate embedding for search term
     const searchEmbedding = await generateEmbedding(searchTerm);
     

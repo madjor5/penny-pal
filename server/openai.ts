@@ -58,9 +58,13 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "Show me all my Starbucks purchases" -> queryType: 'semantic_search', searchTerm: 'Starbucks', searchType: 'store'
           - "Show me my Costco transactions" -> queryType: 'semantic_search', searchTerm: 'Costco', searchType: 'store'
           - "When did I buy burger buns last time?" -> queryType: 'semantic_search', searchTerm: 'burger buns', isLatest: true, searchType: 'product'
+          - "When did I buy american cheese slices?" -> queryType: 'semantic_search', searchTerm: 'american cheese slices', isLatest: true, searchType: 'product'
+          - "When did I last buy milk?" -> queryType: 'semantic_search', searchTerm: 'milk', isLatest: true, searchType: 'product'
           - "What was my last purchase of coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', isLatest: true, searchType: 'product'
           - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
           - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
+          
+          IMPORTANT: Any query asking "when did I buy", "when did I last buy", "when was my last", or similar temporal questions about specific items should ALWAYS set isLatest: true and use searchType: 'product'.
           
           Respond with valid JSON only.`
         },

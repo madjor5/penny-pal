@@ -83,34 +83,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const accounts = await storage.getAccounts();
           const searchTerm = query.parameters.accountName.toLowerCase();
           
-          // Find potential matches with different strategies
-          const exactMatches = accounts.filter(account => 
-            account.name.toLowerCase() === searchTerm
-          );
+          // Improved matching with scoring system
+          const searchWords = searchTerm.split(/[\s']+/).filter(word => word.length > 0);
           
-          const partialMatches = accounts.filter(account => {
-            const accountWords = account.name.toLowerCase().split(/[\s']+/);
-            const searchWords = searchTerm.split(/[\s']+/);
+          // Calculate match scores for each account
+          const accountScores = accounts.map(account => {
+            const accountName = account.name.toLowerCase();
+            const accountWords = accountName.split(/[\s']+/).filter(word => word.length > 0);
             
-            // Check if any search word matches any account word
-            return searchWords.some(searchWord => 
-              accountWords.some(accountWord => 
-                accountWord.includes(searchWord) || searchWord.includes(accountWord)
-              )
-            );
+            // Exact match gets highest score
+            if (accountName === searchTerm) {
+              return { account, score: 100, matchType: 'exact' };
+            }
+            
+            // Contains entire search term gets high score
+            if (accountName.includes(searchTerm)) {
+              return { account, score: 90, matchType: 'contains_full' };
+            }
+            
+            // Calculate word-based matching
+            let matchedWords = 0;
+            let totalWordMatches = 0;
+            
+            searchWords.forEach(searchWord => {
+              let wordMatched = false;
+              accountWords.forEach(accountWord => {
+                if (accountWord.includes(searchWord) || searchWord.includes(accountWord)) {
+                  if (!wordMatched) {
+                    matchedWords++;
+                    wordMatched = true;
+                  }
+                  totalWordMatches++;
+                }
+              });
+            });
+            
+            if (matchedWords === 0) {
+              return { account, score: 0, matchType: 'none' };
+            }
+            
+            // Score based on percentage of search words matched and strength of matches
+            const wordMatchScore = (matchedWords / searchWords.length) * 50;
+            const strengthBonus = Math.min(totalWordMatches * 5, 25); // Bonus for multiple word instances
+            
+            // Give extra points if all search words are matched
+            const allWordsBonus = matchedWords === searchWords.length ? 20 : 0;
+            
+            return { 
+              account, 
+              score: wordMatchScore + strengthBonus + allWordsBonus, 
+              matchType: matchedWords === searchWords.length ? 'all_words' : 'partial_words',
+              matchedWords,
+              totalWords: searchWords.length
+            };
           });
           
-          const containsMatches = accounts.filter(account => 
-            account.name.toLowerCase().includes(searchTerm) ||
-            searchTerm.includes(account.name.toLowerCase().split(' ')[0])
-          );
+          // Filter and sort by score
+          const validMatches = accountScores
+            .filter(item => item.score > 30) // Only consider matches with decent scores
+            .sort((a, b) => b.score - a.score);
           
-          // Combine and prioritize matches
-          let allMatches = [...exactMatches, ...partialMatches, ...containsMatches];
-          // Remove duplicates while preserving order
-          allMatches = allMatches.filter((account, index, arr) => 
-            arr.findIndex(a => a.id === account.id) === index
-          );
+          // Extract the accounts from scored matches
+          let allMatches = validMatches.map(item => item.account);
+          
+          // Check if we have a clear winner (significantly higher score than others)
+          if (validMatches.length > 1) {
+            const topScore = validMatches[0].score;
+            const secondScore = validMatches[1].score;
+            
+            // If top match is significantly better (20+ points difference), use it
+            if (topScore - secondScore >= 20) {
+              allMatches = [validMatches[0].account];
+              debugInfo.accountMatch = {
+                searchTerm: query.parameters.accountName,
+                topScore,
+                secondScore,
+                scoreDifference: topScore - secondScore,
+                clearWinner: true
+              };
+            }
+          }
+          
+          const exactMatches = validMatches.filter(item => item.matchType === 'exact').map(item => item.account);
           
           accountSearchResult = {
             found: allMatches.length > 0,

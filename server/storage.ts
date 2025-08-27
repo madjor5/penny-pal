@@ -31,6 +31,8 @@ export interface IStorage {
   calculateAccountBalance(accountId: string): Promise<string>;
   recalculateAccountBalance(accountId: string): Promise<Account>;
   recalculateAllAccountBalances(): Promise<Account[]>;
+  searchAccountsBySemantic(searchTerm: string, threshold?: number): Promise<Account[]>;
+  generateAccountEmbeddings(): Promise<void>;
 
   // Transactions
   getTransactions(accountId?: string, limit?: number): Promise<Transaction[]>;
@@ -80,9 +82,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAccount(insertAccount: InsertAccount): Promise<Account> {
+    // Generate embedding for the account name
+    const embedding = await generateEmbedding(`${insertAccount.name} ${insertAccount.type} account`);
+    
     const [account] = await db
       .insert(accounts)
-      .values(insertAccount)
+      .values({
+        ...insertAccount,
+        embedding: embedding
+      })
       .returning();
     return account;
   }
@@ -295,6 +303,53 @@ export class DatabaseStorage implements IStorage {
     }
     
     return updatedAccounts;
+  }
+
+  async searchAccountsBySemantic(searchTerm: string, threshold: number = 0.6): Promise<Account[]> {
+    // Generate embedding for search term
+    const searchEmbedding = await generateEmbedding(searchTerm);
+    
+    if (searchEmbedding.length === 0) {
+      return [];
+    }
+
+    // Get all accounts and calculate similarity
+    const allAccounts = await db.select().from(accounts);
+    
+    const similarAccounts = allAccounts
+      .map(account => ({
+        ...account,
+        similarity: account.embedding ? cosineSimilarity(searchEmbedding, account.embedding) : 0
+      }))
+      .filter(account => account.similarity >= threshold)
+      .sort((a, b) => b.similarity - a.similarity); // Sort by similarity (highest first)
+
+    return similarAccounts;
+  }
+
+  async generateAccountEmbeddings(): Promise<void> {
+    // Get all accounts without embeddings
+    const allAccounts = await db.select().from(accounts);
+    const accountsWithoutEmbeddings = allAccounts.filter((account: Account) => !account.embedding || account.embedding.length === 0);
+    
+    console.log(`Generating embeddings for ${accountsWithoutEmbeddings.length} accounts...`);
+    
+    for (const account of accountsWithoutEmbeddings) {
+      try {
+        const embedding = await generateEmbedding(`${account.name} ${account.type} account`);
+        
+        await db
+          .update(accounts)
+          .set({ embedding: embedding })
+          .where(eq(accounts.id, account.id));
+          
+        console.log(`Generated embedding for account: ${account.name}`);
+      } catch (error) {
+        console.error(`Failed to generate embedding for account ${account.name}:`, error);
+      }
+    }
+    
+    console.log('Finished generating account embeddings');
   }
 
   // Analytics

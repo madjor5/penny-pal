@@ -164,6 +164,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
           
+          // If text matching didn't give us a clear result, try semantic search
+          if (allMatches.length === 0 || allMatches.length > 1) {
+            try {
+              const semanticMatches = await storage.searchAccountsBySemantic(searchTerm, 0.7);
+              
+              if (semanticMatches.length === 1) {
+                // Single semantic match found - use it
+                allMatches = [semanticMatches[0]];
+                debugInfo.semanticMatch = {
+                  searchTerm: query.parameters.accountName,
+                  foundAccount: semanticMatches[0].name,
+                  similarity: (semanticMatches[0] as any).similarity,
+                  matchType: 'semantic_single'
+                };
+              } else if (semanticMatches.length > 1) {
+                // Check if there's a clear semantic winner
+                const topSimilarity = (semanticMatches[0] as any).similarity;
+                const secondSimilarity = (semanticMatches[1] as any).similarity;
+                
+                if (topSimilarity - secondSimilarity >= 0.15) { // 15% difference threshold
+                  allMatches = [semanticMatches[0]];
+                  debugInfo.semanticMatch = {
+                    searchTerm: query.parameters.accountName,
+                    foundAccount: semanticMatches[0].name,
+                    similarity: topSimilarity,
+                    secondSimilarity,
+                    similarityDifference: topSimilarity - secondSimilarity,
+                    matchType: 'semantic_clear_winner'
+                  };
+                } else {
+                  // Multiple close semantic matches, keep the ambiguous result
+                  allMatches = semanticMatches.slice(0, 3); // Limit to top 3 semantic matches
+                  debugInfo.semanticMatch = {
+                    searchTerm: query.parameters.accountName,
+                    multipleMatches: semanticMatches.slice(0, 3).map(a => ({ 
+                      name: a.name, 
+                      id: a.id,
+                      similarity: (a as any).similarity 
+                    })),
+                    matchType: 'semantic_ambiguous'
+                  };
+                }
+              }
+            } catch (error) {
+              console.error('Error in semantic account search:', error);
+            }
+          }
+          
           const exactMatches = validMatches.filter(item => item.matchType === 'exact').map(item => item.account);
           
           accountSearchResult = {
@@ -927,6 +975,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(account);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch account" });
+    }
+  });
+
+  // Generate embeddings for existing accounts
+  app.post("/api/generate-account-embeddings", async (req, res) => {
+    try {
+      await storage.generateAccountEmbeddings();
+      res.json({ message: "Account embeddings generated successfully" });
+    } catch (error) {
+      console.error('Error generating account embeddings:', error);
+      res.status(500).json({ error: "Failed to generate account embeddings" });
     }
   });
 

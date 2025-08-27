@@ -9,6 +9,7 @@ export const accounts = pgTable("accounts", {
   name: text("name").notNull(),
   type: text("type").notNull(), // 'budget', 'expenses', 'savings'
   balance: decimal("balance", { precision: 12, scale: 2 }).notNull().default('0'),
+  embedding: real("embedding").array(), // Store OpenAI embedding vector for account name
   createdAt: timestamp("created_at").defaultNow(),
 });
 

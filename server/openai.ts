@@ -59,9 +59,14 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           For account names, extract specific account references from the user's message:
           - "Angelica's account", "Angelica's", "Angelica" -> accountName: "Angelica"
-          - "John's account", "John's credit card" -> accountName: "John"
+          - "John's account", "John's credit card" -> accountName: "John"  
           - "household budget", "main budget" -> accountName: "Household Budget"
           - "emergency savings", "vacation savings" -> accountName based on the specific savings mentioned
+          
+          IMPORTANT: If a user mentions an account name in ANY context (even without explicitly saying "transactions"), treat it as a transaction request. Examples:
+          - "angelica account" -> queryType: 'transactions', accountName: 'Angelica'
+          - "show me angelica" -> queryType: 'transactions', accountName: 'Angelica'
+          - "last 20 from angelicas" -> queryType: 'transactions', accountName: 'Angelica'
           
           IMPORTANT: Positive amounts represent incoming money/income. Negative amounts represent outgoing money/spending.
           
@@ -69,6 +74,9 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "Show my grocery spending this month" -> queryType: 'transactions', category: 'groceries', dateRange: current month, transactionDirection: 'outgoing'
           - "Show transactions on Angelica's account" -> queryType: 'transactions', accountName: 'Angelica'
           - "What did John spend on?" -> queryType: 'transactions', accountName: 'John', transactionDirection: 'outgoing'
+          - "angelica transactions" -> queryType: 'transactions', accountName: 'Angelica'
+          - "show me angelica account" -> queryType: 'transactions', accountName: 'Angelica'
+          - "last 20 transactions from angelicas account" -> queryType: 'transactions', accountName: 'Angelica'
           - "List all incoming transactions" -> queryType: 'transactions', transactionDirection: 'incoming'
           - "Show my income this month" -> queryType: 'transactions', dateRange: current month, transactionDirection: 'incoming'
           - "What money did I receive last week?" -> queryType: 'transactions', dateRange: last week, transactionDirection: 'incoming'

@@ -66,7 +66,7 @@ export default function AccountSummary({ accounts }: AccountSummaryProps) {
             <div className="flex items-center space-x-2">
               <div className={`w-2 h-2 ${getAccountColor(account.type)} rounded-full`}></div>
               <span className="text-sm text-gray-600" data-testid={`text-account-name-${account.type}`}>
-                {getAccountDisplayName(account.type)}
+                {account.name} ({account.type})
               </span>
             </div>
             <span 

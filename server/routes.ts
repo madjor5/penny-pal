@@ -71,23 +71,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Helper function to find account ID by name
       let targetAccountId: string | undefined = undefined;
+      let accountSearchResult: { found: boolean; matches: any[]; exact?: any } = { found: false, matches: [] };
+      
       if (query.parameters.accountName) {
         try {
           const accounts = await storage.getAccounts();
-          const matchingAccount = accounts.find(account => 
-            account.name.toLowerCase().includes(query.parameters.accountName!.toLowerCase()) ||
-            query.parameters.accountName!.toLowerCase().includes(account.name.toLowerCase().split(' ')[0].toLowerCase())
+          const searchTerm = query.parameters.accountName.toLowerCase();
+          
+          // Find potential matches with different strategies
+          const exactMatches = accounts.filter(account => 
+            account.name.toLowerCase() === searchTerm
           );
-          if (matchingAccount) {
-            targetAccountId = matchingAccount.id;
+          
+          const partialMatches = accounts.filter(account => {
+            const accountWords = account.name.toLowerCase().split(/[\s']+/);
+            const searchWords = searchTerm.split(/[\s']+/);
+            
+            // Check if any search word matches any account word
+            return searchWords.some(searchWord => 
+              accountWords.some(accountWord => 
+                accountWord.includes(searchWord) || searchWord.includes(accountWord)
+              )
+            );
+          });
+          
+          const containsMatches = accounts.filter(account => 
+            account.name.toLowerCase().includes(searchTerm) ||
+            searchTerm.includes(account.name.toLowerCase().split(' ')[0])
+          );
+          
+          // Combine and prioritize matches
+          let allMatches = [...exactMatches, ...partialMatches, ...containsMatches];
+          // Remove duplicates while preserving order
+          allMatches = allMatches.filter((account, index, arr) => 
+            arr.findIndex(a => a.id === account.id) === index
+          );
+          
+          accountSearchResult = {
+            found: allMatches.length > 0,
+            matches: allMatches,
+            exact: exactMatches.length > 0 ? exactMatches[0] : undefined
+          };
+          
+          if (allMatches.length === 1) {
+            // Single match found - use it
+            targetAccountId = allMatches[0].id;
             debugInfo.accountMatch = {
               searchTerm: query.parameters.accountName,
-              foundAccount: matchingAccount.name,
-              accountId: targetAccountId
+              foundAccount: allMatches[0].name,
+              accountId: targetAccountId,
+              matchType: exactMatches.length > 0 ? 'exact' : 'partial'
+            };
+          } else if (allMatches.length > 1) {
+            // Multiple matches - will need clarification
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              multipleMatches: allMatches.map(a => ({ name: a.name, id: a.id })),
+              matchType: 'ambiguous'
+            };
+          } else {
+            // No matches found
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              matchType: 'not_found',
+              allAccounts: accounts.map(a => ({ name: a.name, id: a.id }))
             };
           }
         } catch (error) {
           console.error('Error finding account by name:', error);
+        }
+      }
+      
+      // Handle account search results - if account name was specified but not found or ambiguous
+      if (query.parameters.accountName && (!accountSearchResult.found || accountSearchResult.matches.length > 1)) {
+        if (accountSearchResult.matches.length === 0) {
+          // No accounts found
+          const allAccounts = debugInfo.accountMatch?.allAccounts || [];
+          const accountList = allAccounts.map((acc: any) => `• ${acc.name}`).join('\n');
+          
+          return res.json({
+            message: `I couldn't find an account matching "${query.parameters.accountName}". Here are your available accounts:\n\n${accountList}\n\nPlease specify which account you'd like to see transactions for.`,
+            data: null,
+            debug: debug ? debugInfo : null
+          });
+        } else if (accountSearchResult.matches.length > 1) {
+          // Multiple accounts found - ask for clarification
+          const matchList = accountSearchResult.matches.map((acc: any) => `• ${acc.name}`).join('\n');
+          
+          return res.json({
+            message: `I found multiple accounts matching "${query.parameters.accountName}":\n\n${matchList}\n\nWhich account did you mean? Please be more specific.`,
+            data: null,
+            debug: debug ? debugInfo : null
+          });
         }
       }
       

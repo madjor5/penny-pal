@@ -1,0 +1,106 @@
+{
+  "accounts": [
+    {
+      "name": "Main Checking",
+      "type": "expenses",
+      "balance": "2500.00"
+    },
+    {
+      "name": "Savings Account",
+      "type": "savings", 
+      "balance": "10000.00"
+    },
+    {
+      "name": "Monthly Budget",
+      "type": "budget",
+      "balance": "3000.00"
+    }
+  ],
+  "transactions": [
+    {
+      "accountId": "ACCOUNT_ID_HERE",
+      "description": "Grocery shopping at Whole Foods",
+      "amount": "-125.50",
+      "category": "groceries",
+      "merchant": "Whole Foods Market",
+      "date": "2024-01-15T10:30:00.000Z",
+      "receiptData": {
+        "items": [
+          {"description": "Organic Bananas", "amount": "4.99"},
+          {"description": "Chicken Breast", "amount": "12.50"},
+          {"description": "Greek Yogurt", "amount": "8.00"}
+        ]
+      }
+    },
+    {
+      "accountId": "ACCOUNT_ID_HERE",
+      "description": "Gas station fuel",
+      "amount": "-65.00",
+      "category": "transportation",
+      "merchant": "Shell Gas Station",
+      "date": "2024-01-14T16:45:00.000Z"
+    }
+  ],
+  "budgets": [
+    {
+      "name": "Monthly Groceries",
+      "category": "groceries",
+      "amount": "500.00",
+      "period": "monthly",
+      "accountId": "ACCOUNT_ID_HERE"
+    },
+    {
+      "name": "Transportation Budget",
+      "category": "transportation", 
+      "amount": "300.00",
+      "period": "monthly",
+      "accountId": "ACCOUNT_ID_HERE"
+    }
+  ],
+  "savingsGoals": [
+    {
+      "name": "Emergency Fund",
+      "targetAmount": "10000.00",
+      "currentAmount": "2500.00",
+      "targetDate": "2024-12-31T00:00:00.000Z",
+      "accountId": "ACCOUNT_ID_HERE"
+    },
+    {
+      "name": "Vacation Fund",
+      "targetAmount": "5000.00", 
+      "currentAmount": "750.00",
+      "targetDate": "2024-07-01T00:00:00.000Z",
+      "accountId": "ACCOUNT_ID_HERE"
+    }
+  ],
+  "receiptItems": [
+    {
+      "transactionId": "TRANSACTION_ID_HERE",
+      "itemDescription": "Organic Bananas",
+      "itemAmount": "4.99",
+      "itemCategory": "produce"
+    },
+    {
+      "transactionId": "TRANSACTION_ID_HERE", 
+      "itemDescription": "Chicken Breast",
+      "itemAmount": "12.50",
+      "itemCategory": "meat"
+    }
+  ],
+  "_instructions": {
+    "usage": "1. Replace ACCOUNT_ID_HERE and TRANSACTION_ID_HERE with actual IDs after accounts/transactions are created, OR use the 'references' section below",
+    "references": {
+      "accounts": "You can reference accounts by name using 'accountName' instead of 'accountId'",
+      "transactions": "You can reference transactions by description using 'transactionRef' instead of 'transactionId'"
+    },
+    "notes": [
+      "All monetary amounts should be strings with decimal notation (e.g., '125.50')",
+      "Negative amounts for expenses, positive for income",
+      "Dates should be in ISO 8601 format",
+      "Account types: 'budget', 'expenses', 'savings'",
+      "Budget periods: 'monthly', 'weekly', 'yearly'",
+      "You can omit any section you don't need",
+      "IDs will be auto-generated if not provided"
+    ]
+  }
+}

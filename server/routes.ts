@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { parseFinancialQuery, generateFinancialResponse, categorizeTransaction } from "./openai";
-import { insertTransactionSchema, insertBudgetSchema, insertSavingsGoalSchema, insertChatMessageSchema } from "@shared/schema";
+import { insertTransactionSchema, insertBudgetSchema, insertSavingsGoalSchema, insertChatMessageSchema, insertAccountSchema, insertReceiptItemSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -69,6 +69,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Execute the appropriate query based on the parsed intent
       let dbQueries: string[] = [];
       
+      // Helper function to find account ID by name
+      let targetAccountId: string | undefined = undefined;
+      let accountSearchResult: { found: boolean; matches: any[]; exact?: any } = { found: false, matches: [] };
+      
+      if (query.parameters.accountName) {
+        try {
+          const accounts = await storage.getAccounts();
+          const searchTerm = query.parameters.accountName.toLowerCase();
+          
+          // Find potential matches with different strategies
+          const exactMatches = accounts.filter(account => 
+            account.name.toLowerCase() === searchTerm
+          );
+          
+          const partialMatches = accounts.filter(account => {
+            const accountWords = account.name.toLowerCase().split(/[\s']+/);
+            const searchWords = searchTerm.split(/[\s']+/);
+            
+            // Check if any search word matches any account word
+            return searchWords.some(searchWord => 
+              accountWords.some(accountWord => 
+                accountWord.includes(searchWord) || searchWord.includes(accountWord)
+              )
+            );
+          });
+          
+          const containsMatches = accounts.filter(account => 
+            account.name.toLowerCase().includes(searchTerm) ||
+            searchTerm.includes(account.name.toLowerCase().split(' ')[0])
+          );
+          
+          // Combine and prioritize matches
+          let allMatches = [...exactMatches, ...partialMatches, ...containsMatches];
+          // Remove duplicates while preserving order
+          allMatches = allMatches.filter((account, index, arr) => 
+            arr.findIndex(a => a.id === account.id) === index
+          );
+          
+          accountSearchResult = {
+            found: allMatches.length > 0,
+            matches: allMatches,
+            exact: exactMatches.length > 0 ? exactMatches[0] : undefined
+          };
+          
+          if (allMatches.length === 1) {
+            // Single match found - use it
+            targetAccountId = allMatches[0].id;
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              foundAccount: allMatches[0].name,
+              accountId: targetAccountId,
+              matchType: exactMatches.length > 0 ? 'exact' : 'partial'
+            };
+          } else if (allMatches.length > 1) {
+            // Multiple matches - will need clarification
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              multipleMatches: allMatches.map(a => ({ name: a.name, id: a.id })),
+              matchType: 'ambiguous'
+            };
+          } else {
+            // No matches found
+            debugInfo.accountMatch = {
+              searchTerm: query.parameters.accountName,
+              matchType: 'not_found',
+              allAccounts: accounts.map(a => ({ name: a.name, id: a.id }))
+            };
+          }
+        } catch (error) {
+          console.error('Error finding account by name:', error);
+        }
+      }
+      
+      // Handle account search results - if account name was specified but not found or ambiguous
+      if (query.parameters.accountName && (!accountSearchResult.found || accountSearchResult.matches.length > 1)) {
+        if (accountSearchResult.matches.length === 0) {
+          // No accounts found
+          const allAccounts = debugInfo.accountMatch?.allAccounts || [];
+          const accountList = allAccounts.map((acc: any) => `• ${acc.name}`).join('\n');
+          
+          return res.json({
+            message: `I couldn't find an account matching "${query.parameters.accountName}". Here are your available accounts:\n\n${accountList}\n\nPlease specify which account you'd like to see transactions for.`,
+            data: null,
+            debug: debug ? debugInfo : null
+          });
+        } else if (accountSearchResult.matches.length > 1) {
+          // Multiple accounts found - ask for clarification
+          const matchList = accountSearchResult.matches.map((acc: any) => `• ${acc.name}`).join('\n');
+          
+          return res.json({
+            message: `I found multiple accounts matching "${query.parameters.accountName}":\n\n${matchList}\n\nWhich account did you mean? Please be more specific.`,
+            data: null,
+            debug: debug ? debugInfo : null
+          });
+        }
+      }
+      
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category && query.parameters.dateRange) {
@@ -89,20 +186,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range, falling back to category only:', query.parameters.dateRange);
-                dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to invalid dates`);
-                responseData = await storage.getTransactionsByCategory(query.parameters.category);
+                dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'}) - fallback due to invalid dates`);
+                responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
               } else {
-                dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}')`);
-                responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate);
+                dbQueries.push(`getTransactionsByCategoryAndDateRange('${query.parameters.category}', '${startDate.toISOString()}', '${endDate.toISOString()}', ${targetAccountId || 'undefined'})`);
+                responseData = await storage.getTransactionsByCategoryAndDateRange(query.parameters.category, startDate, endDate, targetAccountId);
               }
             } catch (error) {
               console.error('Date parsing error, falling back to category only:', error);
-              dbQueries.push(`getTransactionsByCategory('${query.parameters.category}') - fallback due to date parsing error`);
-              responseData = await storage.getTransactionsByCategory(query.parameters.category);
+              dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'}) - fallback due to date parsing error`);
+              responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
             }
           } else if (query.parameters.category) {
-            dbQueries.push(`getTransactionsByCategory('${query.parameters.category}')`);
-            responseData = await storage.getTransactionsByCategory(query.parameters.category);
+            dbQueries.push(`getTransactionsByCategory('${query.parameters.category}', ${targetAccountId || 'undefined'})`);
+            responseData = await storage.getTransactionsByCategory(query.parameters.category, targetAccountId);
           } else if (query.parameters.dateRange) {
             try {
               const startDate = new Date(query.parameters.dateRange.start);
@@ -111,20 +208,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range:', query.parameters.dateRange);
-                dbQueries.push(`getTransactions(undefined, 20) - fallback due to invalid dates`);
-                responseData = await storage.getTransactions(undefined, 20);
+                dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to invalid dates`);
+                responseData = await storage.getTransactions(targetAccountId, 20);
               } else {
-                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}')`);                
-                responseData = await storage.getTransactionsByDateRange(startDate, endDate);
+                dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}', ${targetAccountId || 'undefined'})`);                
+                responseData = await storage.getTransactionsByDateRange(startDate, endDate, targetAccountId);
               }
             } catch (error) {
               console.error('Date parsing error:', error);
-              dbQueries.push(`getTransactions(undefined, 20) - fallback due to date parsing error`);
-              responseData = await storage.getTransactions(undefined, 20);
+              dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to date parsing error`);
+              responseData = await storage.getTransactions(targetAccountId, 20);
             }
           } else {
-            dbQueries.push(`getTransactions(undefined, 20)`);
-            responseData = await storage.getTransactions(undefined, 20);
+            // If we have a specific account, query that account; otherwise get recent transactions  
+            dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20)`);
+            responseData = await storage.getTransactions(targetAccountId, 20);
+          }
+          
+          // Filter by transaction direction if specified
+          if (query.parameters.transactionDirection) {
+            if (query.parameters.transactionDirection === 'incoming') {
+              responseData = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            } else if (query.parameters.transactionDirection === 'outgoing') {
+              responseData = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            }
+            // 'all' or undefined means no filtering
           }
           break;
 
@@ -213,11 +321,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (query.queryType) {
         case 'transactions':
           if (query.parameters.category) {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
             const count = responseData.length;
-            responseMessage = count > 0 
-              ? `You spent $${total.toFixed(2)} on ${query.parameters.category} across ${count} transaction${count > 1 ? 's' : ''}.`
-              : `You haven't spent anything on ${query.parameters.category} in the selected time period.`;
+            
+            if (count > 0) {
+              let parts = [];
+              if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+              if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+              responseMessage = `For ${query.parameters.category}: ${parts.join(' and ')} across ${count} transaction${count > 1 ? 's' : ''}.`;
+            } else {
+              responseMessage = `No transactions found for ${query.parameters.category} in the selected time period.`;
+            }
             
             if (count > 0) {
               suggestions = [
@@ -227,11 +344,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ];
             }
           } else if (query.parameters.dateRange) {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
-            responseMessage = `You spent $${total.toFixed(2)} during this period across ${responseData.length} transactions.`;
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
+            
+            let parts = [];
+            if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+            if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+            responseMessage = `During this period you ${parts.join(' and ')} across ${responseData.length} transactions.`;
           } else {
-            const total = responseData.reduce((sum: number, t: any) => sum + Math.abs(parseFloat(t.amount)), 0);
-            responseMessage = `Here are your recent transactions. Total: $${total.toFixed(2)} across ${responseData.length} transactions.`;
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
+            
+            let parts = [];
+            if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+            if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+            responseMessage = `Here are your recent transactions. You ${parts.join(' and ')} across ${responseData.length} transactions.`;
           }
           break;
 
@@ -582,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
           responseMessage += responseData.map((acc: any) => {
             const balance = parseFloat(acc.balance) || 0;
-            return `${acc.name}: $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
+            return `${acc.name} (${acc.type}): $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
           }).join(", ");
           suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
       }
@@ -634,6 +765,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(accounts);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch accounts" });
+    }
+  });
+
+  app.post("/api/accounts/:id/recalculate-balance", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updatedAccount = await storage.recalculateAccountBalance(id);
+      res.json({ 
+        success: true, 
+        account: updatedAccount,
+        message: `Account balance recalculated successfully. New balance: $${updatedAccount.balance}`
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to recalculate account balance" });
+    }
+  });
+
+  app.post("/api/accounts/recalculate-all-balances", async (req, res) => {
+    try {
+      const updatedAccounts = await storage.recalculateAllAccountBalances();
+      res.json({ 
+        success: true, 
+        accounts: updatedAccounts,
+        message: `Successfully recalculated balances for ${updatedAccounts.length} accounts`
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to recalculate account balances" });
     }
   });
 
@@ -787,6 +945,244 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Chat history cleared successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to clear chat history" });
+    }
+  });
+
+  // Bulk data upload endpoint
+  app.post("/api/data/bulk-upload", async (req, res) => {
+    try {
+      const { accounts = [], transactions = [], budgets = [], savingsGoals = [], receiptItems = [] } = req.body;
+      
+      const results = {
+        success: true,
+        created: {
+          accounts: 0,
+          transactions: 0, 
+          budgets: 0,
+          savingsGoals: 0,
+          receiptItems: 0
+        },
+        errors: [] as string[],
+        message: undefined as string | undefined
+      };
+
+      // Create accounts first (needed for foreign keys)
+      const accountMap = new Map<string, string>(); // name -> id mapping
+      for (const accountData of accounts) {
+        try {
+          const validatedAccount = insertAccountSchema.parse(accountData);
+          const createdAccount = await storage.createAccount(validatedAccount);
+          accountMap.set(accountData.name, createdAccount.id);
+          results.created.accounts++;
+        } catch (error) {
+          results.errors.push(`Account "${accountData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create transactions (may reference accounts by name)
+      const transactionMap = new Map<string, string>(); // description -> id mapping
+      for (const transactionData of transactions) {
+        try {
+          // Handle account reference by name
+          if (transactionData.accountName && !transactionData.accountId) {
+            const accountId = accountMap.get(transactionData.accountName);
+            if (!accountId) {
+              results.errors.push(`Transaction "${transactionData.description}": Referenced account "${transactionData.accountName}" not found`);
+              continue;
+            }
+            transactionData.accountId = accountId;
+            delete transactionData.accountName;
+          }
+          
+          const validatedTransaction = insertTransactionSchema.parse(transactionData);
+          const createdTransaction = await storage.createTransaction(validatedTransaction);
+          transactionMap.set(transactionData.description, createdTransaction.id);
+          results.created.transactions++;
+        } catch (error) {
+          results.errors.push(`Transaction "${transactionData.description}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create budgets (may reference accounts by name)
+      for (const budgetData of budgets) {
+        try {
+          // Handle account reference by name
+          if (budgetData.accountName && !budgetData.accountId) {
+            const accountId = accountMap.get(budgetData.accountName);
+            if (accountId) {
+              budgetData.accountId = accountId;
+            }
+            delete budgetData.accountName;
+          }
+          
+          const validatedBudget = insertBudgetSchema.parse(budgetData);
+          await storage.createBudget(validatedBudget);
+          results.created.budgets++;
+        } catch (error) {
+          results.errors.push(`Budget "${budgetData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create savings goals (may reference accounts by name)
+      for (const goalData of savingsGoals) {
+        try {
+          // Handle account reference by name
+          if (goalData.accountName && !goalData.accountId) {
+            const accountId = accountMap.get(goalData.accountName);
+            if (accountId) {
+              goalData.accountId = accountId;
+            }
+            delete goalData.accountName;
+          }
+          
+          const validatedGoal = insertSavingsGoalSchema.parse(goalData);
+          await storage.createSavingsGoal(validatedGoal);
+          results.created.savingsGoals++;
+        } catch (error) {
+          results.errors.push(`Savings Goal "${goalData.name}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Create receipt items (may reference transactions by description)
+      for (const receiptData of receiptItems) {
+        try {
+          // Handle transaction reference by description
+          if (receiptData.transactionRef && !receiptData.transactionId) {
+            const transactionId = transactionMap.get(receiptData.transactionRef);
+            if (!transactionId) {
+              results.errors.push(`Receipt Item "${receiptData.itemDescription}": Referenced transaction "${receiptData.transactionRef}" not found`);
+              continue;
+            }
+            receiptData.transactionId = transactionId;
+            delete receiptData.transactionRef;
+          }
+          
+          const validatedReceiptItem = insertReceiptItemSchema.parse(receiptData);
+          await storage.createReceiptItem(validatedReceiptItem);
+          results.created.receiptItems++;
+        } catch (error) {
+          results.errors.push(`Receipt Item "${receiptData.itemDescription}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Set success to false if there were any errors
+      if (results.errors.length > 0) {
+        results.success = false;
+      }
+
+      // Recalculate all account balances after bulk upload
+      if (results.created.transactions > 0 || results.created.accounts > 0) {
+        try {
+          await storage.recalculateAllAccountBalances();
+          results.message = `Bulk upload completed successfully. ${results.created.transactions} transactions created and all account balances updated.`;
+        } catch (error) {
+          results.errors.push(`Warning: Failed to recalculate account balances: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      res.json(results);
+
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to process bulk upload",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Account-specific transaction upload endpoint
+  app.post("/api/data/account-upload", async (req, res) => {
+    try {
+      const { accountId, transactions = [] } = req.body;
+      
+      if (!accountId) {
+        return res.status(400).json({
+          success: false,
+          error: "Account ID is required for account-specific uploads"
+        });
+      }
+
+      const results = {
+        success: true,
+        created: {
+          accounts: 0,
+          transactions: 0,
+          budgets: 0,
+          savingsGoals: 0,
+          receiptItems: 0
+        },
+        errors: [] as string[],
+        message: undefined as string | undefined
+      };
+
+      // Process each transaction with its receipt items
+      for (const transactionData of transactions) {
+        try {
+          // Prepare transaction data with the selected account
+          const transactionToCreate = {
+            accountId,
+            description: `${transactionData.merchant} - ${transactionData.category}`,
+            amount: transactionData.amount,
+            category: transactionData.category,
+            merchant: transactionData.merchant,
+            date: new Date(transactionData.date)
+          };
+          
+          const validatedTransaction = insertTransactionSchema.parse(transactionToCreate);
+          const createdTransaction = await storage.createTransaction(validatedTransaction);
+          results.created.transactions++;
+
+          // Process receipt items for this transaction
+          if (transactionData.receiptItems && Array.isArray(transactionData.receiptItems)) {
+            for (const receiptItem of transactionData.receiptItems) {
+              try {
+                const receiptToCreate = {
+                  transactionId: createdTransaction.id,
+                  itemDescription: receiptItem.description,
+                  itemAmount: receiptItem.price,
+                  itemCategory: transactionData.category, // Use transaction category as default
+                  quantity: receiptItem.amount || "1"
+                };
+                
+                const validatedReceiptItem = insertReceiptItemSchema.parse(receiptToCreate);
+                await storage.createReceiptItem(validatedReceiptItem);
+                results.created.receiptItems++;
+              } catch (error) {
+                results.errors.push(`Receipt Item "${receiptItem.description}" in transaction "${transactionData.merchant}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+          }
+        } catch (error) {
+          results.errors.push(`Transaction "${transactionData.merchant}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Set success to false if there were any errors
+      if (results.errors.length > 0) {
+        results.success = false;
+      }
+
+      // Recalculate account balance after account-specific upload
+      if (results.created.transactions > 0) {
+        try {
+          await storage.recalculateAccountBalance(accountId);
+          results.message = `Account upload completed successfully. ${results.created.transactions} transactions created and account balance updated.`;
+        } catch (error) {
+          results.errors.push(`Warning: Failed to recalculate account balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      res.json(results);
+
+    } catch (error) {
+      console.error('Account upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to process account-specific upload",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

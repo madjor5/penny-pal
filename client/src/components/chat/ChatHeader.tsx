@@ -17,7 +17,7 @@ export default function ChatHeader() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-gray-900" data-testid="app-title">
-              FinanceChat
+              Chat with your moneny
             </h1>
             <p className="text-xs text-gray-500" data-testid="app-subtitle">
               AI Financial Assistant

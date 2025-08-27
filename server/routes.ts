@@ -73,6 +73,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let targetAccountId: string | undefined = undefined;
       let accountSearchResult: { found: boolean; matches: any[]; exact?: any } = { found: false, matches: [] };
       
+      // If an account name is specified, always treat it as a transaction request
+      if (query.parameters.accountName) {
+        query.queryType = 'transactions';
+      }
+      
       if (query.parameters.accountName) {
         try {
           const accounts = await storage.getAccounts();
@@ -296,9 +301,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
 
         default:
-          // For general queries, get account overview
-          dbQueries.push(`getAccounts()`);
-          responseData = await storage.getAccounts();
+          // For general queries, check if an account was specified
+          if (targetAccountId) {
+            // If an account was specified, get transactions for that account
+            dbQueries.push(`getTransactions(${targetAccountId}, 20)`);
+            responseData = await storage.getTransactions(targetAccountId, 20);
+          } else {
+            // Otherwise get account overview
+            dbQueries.push(`getAccounts()`);
+            responseData = await storage.getAccounts();
+          }
       }
       
       // Always capture database queries and results
@@ -703,19 +715,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
 
         default:
-          // For general queries, show account overview
-          const totalBalance = responseData.reduce((sum: number, acc: any) => {
-            const balance = parseFloat(acc.balance) || 0;
-            // For expense accounts, the balance is already negative, so add it as is
-            // For other accounts, add the positive balance
-            return sum + balance;
-          }, 0);
-          responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
-          responseMessage += responseData.map((acc: any) => {
-            const balance = parseFloat(acc.balance) || 0;
-            return `${acc.name} (${acc.type}): $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
-          }).join(", ");
-          suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
+          // For general queries, check if we have transactions or accounts data
+          if (targetAccountId && responseData && responseData.length > 0 && responseData[0].accountId) {
+            // We have transactions data for a specific account
+            const account = debugInfo.accountMatch?.foundAccount || "this account";
+            const incoming = responseData.filter((t: any) => parseFloat(t.amount) > 0);
+            const outgoing = responseData.filter((t: any) => parseFloat(t.amount) < 0);
+            const totalIncoming = incoming.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0);
+            const totalOutgoing = Math.abs(outgoing.reduce((sum: number, t: any) => sum + parseFloat(t.amount), 0));
+            
+            let parts = [];
+            if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
+            if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
+            
+            responseMessage = `Here are the recent transactions from ${account}. You ${parts.join(' and ')} across ${responseData.length} transaction${responseData.length > 1 ? 's' : ''}.\n\n`;
+            
+            // Show the transactions
+            responseData.forEach((transaction: any, index: number) => {
+              const date = new Date(transaction.date).toLocaleDateString();
+              const amount = parseFloat(transaction.amount);
+              const formattedAmount = amount >= 0 ? `+$${amount.toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
+              const description = transaction.description || 'Transaction';
+              const merchant = transaction.merchant ? ` at ${transaction.merchant}` : '';
+              
+              responseMessage += `${index + 1}. ${date}: ${formattedAmount} - ${description}${merchant}\n`;
+            });
+            
+            suggestions = ["View more transactions", "Filter by category", "See spending trends"];
+          } else {
+            // Show account overview
+            const totalBalance = responseData.reduce((sum: number, acc: any) => {
+              const balance = parseFloat(acc.balance) || 0;
+              // For expense accounts, the balance is already negative, so add it as is
+              // For other accounts, add the positive balance
+              return sum + balance;
+            }, 0);
+            responseMessage = `Account Overview: Net worth $${totalBalance.toFixed(2)}. `;
+            responseMessage += responseData.map((acc: any) => {
+              const balance = parseFloat(acc.balance) || 0;
+              return `${acc.name} (${acc.type}): $${balance >= 0 ? balance.toFixed(2) : '-$' + Math.abs(balance).toFixed(2)}`;
+            }).join(", ");
+            suggestions = ["View recent transactions", "Check budget status", "Review savings goals"];
+          }
       }
 
       // Save the user message

@@ -83,97 +83,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const accounts = await storage.getAccounts();
           const searchTerm = query.parameters.accountName.toLowerCase();
           
-          // Improved matching with scoring system
-          const searchWords = searchTerm.split(/[\s']+/).filter(word => word.length > 0);
+          // First, try simple text matching
+          const exactMatches = accounts.filter(account => 
+            account.name.toLowerCase() === searchTerm
+          );
           
-          // Calculate match scores for each account
-          const accountScores = accounts.map(account => {
-            const accountName = account.name.toLowerCase();
-            const accountWords = accountName.split(/[\s']+/).filter(word => word.length > 0);
-            
-            // Exact match gets highest score
-            if (accountName === searchTerm) {
-              return { account, score: 100, matchType: 'exact' };
-            }
-            
-            // Contains entire search term gets high score
-            if (accountName.includes(searchTerm)) {
-              return { account, score: 90, matchType: 'contains_full' };
-            }
-            
-            // Calculate word-based matching
-            let matchedWords = 0;
-            let totalWordMatches = 0;
-            
-            searchWords.forEach(searchWord => {
-              let wordMatched = false;
-              accountWords.forEach(accountWord => {
-                if (accountWord.includes(searchWord) || searchWord.includes(accountWord)) {
-                  if (!wordMatched) {
-                    matchedWords++;
-                    wordMatched = true;
-                  }
-                  totalWordMatches++;
-                }
-              });
-            });
-            
-            if (matchedWords === 0) {
-              return { account, score: 0, matchType: 'none' };
-            }
-            
-            // Score based on percentage of search words matched and strength of matches
-            const wordMatchScore = (matchedWords / searchWords.length) * 50;
-            const strengthBonus = Math.min(totalWordMatches * 5, 25); // Bonus for multiple word instances
-            
-            // Give extra points if all search words are matched
-            const allWordsBonus = matchedWords === searchWords.length ? 20 : 0;
-            
-            return { 
-              account, 
-              score: wordMatchScore + strengthBonus + allWordsBonus, 
-              matchType: matchedWords === searchWords.length ? 'all_words' : 'partial_words',
-              matchedWords,
-              totalWords: searchWords.length
-            };
-          });
+          const containsMatches = accounts.filter(account => 
+            account.name.toLowerCase().includes(searchTerm)
+          );
           
-          // Filter and sort by score
-          const validMatches = accountScores
-            .filter(item => item.score > 30) // Only consider matches with decent scores
-            .sort((a, b) => b.score - a.score);
+          let allMatches: typeof accounts = [];
           
-          // Extract the accounts from scored matches
-          let allMatches = validMatches.map(item => item.account);
-          
-          // Check if we have a clear winner (significantly higher score than others)
-          if (validMatches.length > 1) {
-            const topScore = validMatches[0].score;
-            const secondScore = validMatches[1].score;
-            
-            // If top match is significantly better (20+ points difference), use it
-            if (topScore - secondScore >= 20) {
-              allMatches = [validMatches[0].account];
-              debugInfo.accountMatch = {
-                searchTerm: query.parameters.accountName,
-                topScore,
-                secondScore,
-                scoreDifference: topScore - secondScore,
-                clearWinner: true
-              };
-            }
-          }
-          
-          // If text matching didn't give us a clear result, try semantic search
-          if (allMatches.length === 0 || allMatches.length > 1) {
+          if (exactMatches.length > 0) {
+            allMatches = exactMatches;
+            debugInfo.accountMatch = { searchTerm, matchType: 'exact', foundAccount: exactMatches[0].name };
+          } else if (containsMatches.length === 1) {
+            allMatches = containsMatches;
+            debugInfo.accountMatch = { searchTerm, matchType: 'contains_single', foundAccount: containsMatches[0].name };
+          } else {
+            // Text matching failed or was ambiguous, try semantic search
             try {
-              const semanticMatches = await storage.searchAccountsBySemantic(searchTerm, 0.7);
+              const semanticMatches = await storage.searchAccountsBySemantic(searchTerm, 0.65);
+              
               
               if (semanticMatches.length === 1) {
                 // Single semantic match found - use it
                 allMatches = [semanticMatches[0]];
                 debugInfo.semanticMatch = {
-                  searchTerm: query.parameters.accountName,
+                  searchTerm,
                   foundAccount: semanticMatches[0].name,
                   similarity: (semanticMatches[0] as any).similarity,
                   matchType: 'semantic_single'
@@ -186,7 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (topSimilarity - secondSimilarity >= 0.15) { // 15% difference threshold
                   allMatches = [semanticMatches[0]];
                   debugInfo.semanticMatch = {
-                    searchTerm: query.parameters.accountName,
+                    searchTerm,
                     foundAccount: semanticMatches[0].name,
                     similarity: topSimilarity,
                     secondSimilarity,
@@ -194,11 +131,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     matchType: 'semantic_clear_winner'
                   };
                 } else {
-                  // Multiple close semantic matches, keep the ambiguous result
-                  allMatches = semanticMatches.slice(0, 3); // Limit to top 3 semantic matches
+                  // Multiple close semantic matches - fall back to contains matches if available
+                  allMatches = containsMatches.length > 0 ? containsMatches : semanticMatches.slice(0, 3);
                   debugInfo.semanticMatch = {
-                    searchTerm: query.parameters.accountName,
-                    multipleMatches: semanticMatches.slice(0, 3).map(a => ({ 
+                    searchTerm,
+                    multipleMatches: allMatches.map(a => ({ 
                       name: a.name, 
                       id: a.id,
                       similarity: (a as any).similarity 
@@ -206,13 +143,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     matchType: 'semantic_ambiguous'
                   };
                 }
+              } else {
+                // No semantic matches, fall back to contains matches
+                allMatches = containsMatches;
+                debugInfo.accountMatch = { 
+                  searchTerm, 
+                  matchType: containsMatches.length > 1 ? 'contains_multiple' : 'no_match' 
+                };
               }
             } catch (error) {
               console.error('Error in semantic account search:', error);
+              allMatches = containsMatches; // Fallback to text matches
             }
           }
-          
-          const exactMatches = validMatches.filter(item => item.matchType === 'exact').map(item => item.account);
           
           accountSearchResult = {
             found: allMatches.length > 0,

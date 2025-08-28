@@ -63,26 +63,22 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
   const lastChange = latestYear?.change || 0;
   const lastChangePercentage = latestYear?.changePercentage || 0;
   
-  // Prepare chart data without duplicates
-  const chartData = data.map(item => ({
+
+  // Prepare data with historical and forecast values in separate keys
+  const allChartData = data.map(item => ({
     year: item.year,
-    balance: item.balance,
+    historical: !item.isForecast ? item.balance : null,
+    forecast: item.isForecast ? item.balance : null,
     isForecast: item.isForecast || false
   }));
 
-  // Create historical and forecast datasets for proper line styling
-  const historicalChartData = historicalData.map(item => ({
-    year: item.year,
-    balance: item.balance
-  }));
-
-  // For forecast, include the last historical point to connect lines smoothly
-  const forecastChartData = forecastData.length > 0 && historicalData.length > 0 
-    ? [historicalData[historicalData.length - 1], ...forecastData].map(item => ({
-        year: item.year,
-        balance: item.balance
-      }))
-    : [];
+  // Add connection point: make 2025 appear in both historical and forecast for line connection
+  if (forecastData.length > 0 && historicalData.length > 0) {
+    const lastHistoricalIndex = allChartData.findIndex(item => item.year === historicalData[historicalData.length - 1].year);
+    if (lastHistoricalIndex >= 0) {
+      allChartData[lastHistoricalIndex].forecast = allChartData[lastHistoricalIndex].historical;
+    }
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 w-full" data-testid="yearly-growth-chart">
@@ -131,7 +127,7 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
       <div>
         <ChartContainer config={chartConfig} className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={allChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis 
                 dataKey="year" 
@@ -146,9 +142,9 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value, name, props) => [
+                    formatter={(value, name) => [
                       formatCurrency(value as number),
-                      props.payload?.isForecast ? "Forecast Balance" : "Balance"
+                      name === "historical" ? "Balance" : "Forecast Balance"
                     ]}
                   />
                 }
@@ -157,8 +153,7 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               {/* Historical data line (solid) */}
               <Line 
                 type="monotone" 
-                dataKey="balance" 
-                data={historicalChartData}
+                dataKey="historical" 
                 stroke="#10b981"
                 strokeWidth={3}
                 dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
@@ -167,19 +162,16 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               />
               
               {/* Forecast data line (dashed) */}
-              {forecastChartData.length > 0 && (
-                <Line 
-                  type="monotone" 
-                  dataKey="balance" 
-                  data={forecastChartData}
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  strokeDasharray="8 8"
-                  dot={{ fill: "#10b981", strokeWidth: 1, r: 3 }}
-                  activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#10b981" }}
-                  connectNulls={false}
-                />
-              )}
+              <Line 
+                type="monotone" 
+                dataKey="forecast" 
+                stroke="#10b981"
+                strokeWidth={2}
+                strokeDasharray="8 8"
+                dot={{ fill: "#10b981", strokeWidth: 1, r: 3 }}
+                activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#10b981" }}
+                connectNulls={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>

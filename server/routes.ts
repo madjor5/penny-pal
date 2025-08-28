@@ -73,8 +73,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let targetAccountId: string | undefined = undefined;
       let accountSearchResult: { found: boolean; matches: any[]; exact?: any } = { found: false, matches: [] };
       
-      // If an account name is specified, always treat it as a transaction request
-      if (query.parameters.accountName) {
+      // Check for growth visualization queries that might have been misclassified
+      const growthKeywords = ['grow', 'growth', 'per year', 'yearly', 'annual', 'year over year', 'increase', 'change over time', 'progression'];
+      const messageContainsGrowthKeywords = growthKeywords.some(keyword => 
+        message.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      if (messageContainsGrowthKeywords && query.parameters.accountName && query.queryType === 'transactions') {
+        // Override to growth visualization if growth keywords are present
+        query.queryType = 'growth_visualization';
+        debugInfo.queryOverride = {
+          original: 'transactions',
+          override: 'growth_visualization',
+          reason: 'Growth keywords detected in message'
+        };
+      }
+      
+      // If an account name is specified and it's not growth visualization, treat it as a transaction request
+      if (query.parameters.accountName && query.queryType !== 'growth_visualization') {
         query.queryType = 'transactions';
       }
       

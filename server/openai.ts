@@ -72,7 +72,12 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "household budget", "main budget" -> accountName: "Household Budget"
           - "emergency savings", "vacation savings" -> accountName based on the specific savings mentioned
           
-          IMPORTANT: If a user mentions an account name in ANY context (even without explicitly saying "transactions"), treat it as a transaction request. Examples:
+          CRITICAL: Growth/Analysis queries take PRIORITY over transaction queries. Look for these keywords first:
+          - "grow", "growth", "yearly growth", "annual growth" -> queryType: 'growth_visualization'
+          - "per year", "each year", "year over year" -> queryType: 'growth_visualization' 
+          - "increase", "change over time", "progression" -> queryType: 'growth_visualization'
+          
+          THEN, if a user mentions an account name in ANY other context (without growth keywords), treat it as a transaction request. Examples:
           - "angelica account" -> queryType: 'transactions', accountName: 'Angelica'
           - "show me angelica" -> queryType: 'transactions', accountName: 'Angelica'
           - "last 20 from angelicas" -> queryType: 'transactions', accountName: 'Angelica'
@@ -101,8 +106,11 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
           - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
           - "How much does Angelica's account grow per year?" -> queryType: 'growth_visualization', accountName: 'Angelica'
+          - "How much does Angelicas account grow with per year?" -> queryType: 'growth_visualization', accountName: 'Angelica'
           - "Show me yearly growth for household budget" -> queryType: 'growth_visualization', accountName: 'Household Budget'
           - "Chart the annual growth of John's account" -> queryType: 'growth_visualization', accountName: 'John'
+          - "Angelica account growth" -> queryType: 'growth_visualization', accountName: 'Angelica'
+          - "yearly analysis for Angelica" -> queryType: 'growth_visualization', accountName: 'Angelica'
           
           IMPORTANT: Any query asking "when did I buy", "when did I last buy", "when was my last", or similar temporal questions about specific items should ALWAYS set isLatest: true and use searchType: 'product'.
           

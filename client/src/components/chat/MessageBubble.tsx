@@ -2,6 +2,7 @@ import { Bot, User } from "lucide-react";
 import SpendingBreakdown from "@/components/financial/SpendingBreakdown";
 import SavingsGoals from "@/components/financial/SavingsGoals";
 import AccountSummary from "@/components/financial/AccountSummary";
+import YearlyGrowthChart from "@/components/financial/YearlyGrowthChart";
 
 interface MessageBubbleProps {
   message: string;
@@ -106,6 +107,11 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
             {/* Check if data contains savings goals */}
             {data[0]?.targetAmount && data[0]?.currentAmount && (
               <SavingsGoals goals={data} data-testid="savings-goals" />
+            )}
+            
+            {/* Check if data contains yearly growth data */}
+            {data[0]?.year && data[0]?.balance !== undefined && data[0]?.change !== undefined && (
+              <YearlyGrowthChart data={data} data-testid="yearly-growth-chart" />
             )}
           </>
         )}

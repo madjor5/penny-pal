@@ -393,6 +393,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
 
+        case 'growth_visualization':
+          if (targetAccountId) {
+            // Get yearly growth data for the specified account
+            dbQueries.push(`getYearlyGrowthData('${targetAccountId}')`);
+            responseData = await storage.getYearlyGrowthData(targetAccountId);
+          } else {
+            responseData = [];
+          }
+          break;
+
         default:
           // For general queries, check if an account was specified
           if (targetAccountId) {
@@ -1279,7 +1289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Prepare transaction data with the selected account
           const transactionToCreate = {
             accountId,
-            description: `${transactionData.merchant} - ${transactionData.category}`,
+            description: transactionData.description ? `${transactionData.description}` : `${transactionData.merchant} - ${transactionData.category}`,
             amount: transactionData.amount,
             category: transactionData.category,
             merchant: transactionData.merchant,

@@ -68,6 +68,7 @@ export interface IStorage {
   // Analytics
   getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
   getMonthlySpending(accountId?: string): Promise<{ month: string; total: string }[]>;
+  getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -397,6 +398,60 @@ export class DatabaseStorage implements IStorage {
 
     const results = await baseQuery;
     return results.map(r => ({ month: r.month as string, total: r.total || '0' }));
+  }
+
+  async getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number }[]> {
+    // Get all transactions for this account ordered by date
+    const accountTransactions = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.accountId, accountId))
+      .orderBy(transactions.date);
+
+    if (accountTransactions.length === 0) {
+      return [];
+    }
+
+    // Calculate yearly balances by running totals
+    const yearlyData = new Map<string, number>();
+    let runningBalance = 0;
+
+    // Process transactions to build yearly balances
+    for (const transaction of accountTransactions) {
+      runningBalance += parseFloat(transaction.amount);
+      const year = new Date(transaction.date).getFullYear().toString();
+      yearlyData.set(year, runningBalance);
+    }
+
+    // Convert to array and calculate growth
+    const results: { year: string; balance: number; change: number; changePercentage: number }[] = [];
+    const years = Array.from(yearlyData.keys()).sort();
+    
+    for (let i = 0; i < years.length; i++) {
+      const year = years[i];
+      const balance = yearlyData.get(year) || 0;
+      
+      let change = 0;
+      let changePercentage = 0;
+      
+      if (i > 0) {
+        const previousBalance = yearlyData.get(years[i - 1]) || 0;
+        change = balance - previousBalance;
+        
+        if (previousBalance !== 0) {
+          changePercentage = (change / Math.abs(previousBalance)) * 100;
+        }
+      }
+      
+      results.push({
+        year,
+        balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
+        change: Math.round(change * 100) / 100,
+        changePercentage: Math.round(changePercentage * 100) / 100
+      });
+    }
+
+    return results;
   }
 
   // Receipt Items

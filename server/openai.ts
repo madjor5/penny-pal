@@ -23,13 +23,15 @@ export interface FinancialQuery {
     transactionDirection?: 'incoming' | 'outgoing' | 'all'; // Direction of money flow
     limit?: number; // Number of transactions to return (e.g., "last 3", "first 5")
   };
-  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt';
+  queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt' | 'growth_visualization';
 }
 
 export interface FinancialResponse {
   answer: string;
   data?: any;
   suggestions?: string[];
+  chartData?: any;
+  chartType?: 'yearly_growth' | 'spending_breakdown' | 'account_summary';
 }
 
 export async function parseFinancialQuery(userMessage: string): Promise<FinancialQuery> {
@@ -44,7 +46,7 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           Parse the user's message and extract:
           - intent: what they want to know
           - parameters: relevant filters like category, date range, account type, account name, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection, limit
-          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
+          - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt', 'growth_visualization'
           
           For the limit parameter, extract numbers when users specify:
           - "last 3 transactions" -> limit: 3
@@ -98,6 +100,9 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           - "What was my last purchase of coffee?" -> queryType: 'semantic_search', searchTerm: 'coffee', isLatest: true, searchType: 'product'
           - "Show me the receipt from my last visit at Costco" -> queryType: 'latest_receipt', searchTerm: 'Costco', isLatest: true
           - "What did I buy on my latest trip to Target?" -> queryType: 'latest_receipt', searchTerm: 'Target', isLatest: true
+          - "How much does Angelica's account grow per year?" -> queryType: 'growth_visualization', accountName: 'Angelica'
+          - "Show me yearly growth for household budget" -> queryType: 'growth_visualization', accountName: 'Household Budget'
+          - "Chart the annual growth of John's account" -> queryType: 'growth_visualization', accountName: 'John'
           
           IMPORTANT: Any query asking "when did I buy", "when did I last buy", "when was my last", or similar temporal questions about specific items should ALWAYS set isLatest: true and use searchType: 'product'.
           

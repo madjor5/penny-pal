@@ -68,7 +68,7 @@ export interface IStorage {
   // Analytics
   getSpendingByCategory(accountId?: string, startDate?: Date, endDate?: Date): Promise<{ category: string; total: string }[]>;
   getMonthlySpending(accountId?: string): Promise<{ month: string; total: string }[]>;
-  getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number }[]>;
+  getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number; isForecast?: boolean }[]>;
 }
 
 export class DatabaseStorage implements IStorage {

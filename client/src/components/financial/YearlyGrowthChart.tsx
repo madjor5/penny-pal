@@ -1,4 +1,4 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { TrendingUp, TrendingDown, Eye } from "lucide-react";
 
@@ -18,10 +18,10 @@ interface YearlyGrowthChartProps {
 export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 w-full">
         <div className="flex items-center space-x-2 mb-4">
-          <BarChartIcon className="text-finance-green" size={20} />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Yearly Growth</h3>
+          <TrendingUp className="text-finance-green" size={20} />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Account Growth</h3>
         </div>
         <p className="text-gray-500 dark:text-gray-400 text-center py-8">
           No growth data available for {accountName || "this account"}.
@@ -34,8 +34,8 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
     balance: {
       label: "Balance",
     },
-    change: {
-      label: "Change",
+    forecast: {
+      label: "Forecast",
     },
   };
 
@@ -63,13 +63,16 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
   const lastChange = latestYear?.change || 0;
   const lastChangePercentage = latestYear?.changePercentage || 0;
   
-  // If we have forecast data, include transition point
-  const allData = historicalData.length > 0 && forecastData.length > 0 
-    ? [...historicalData, ...forecastData]
-    : data;
+  // Prepare chart data with both historical and forecast values
+  const chartData = data.map(item => ({
+    year: item.year,
+    historical: !item.isForecast ? item.balance : null,
+    forecast: item.isForecast ? item.balance : null,
+    isForecast: item.isForecast || false
+  }));
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700" data-testid="yearly-growth-chart">
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 w-full" data-testid="yearly-growth-chart">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
@@ -99,7 +102,9 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
             <span className="text-gray-600 dark:text-gray-400">Historical</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-4 h-0.5 bg-finance-green border-dashed border-t-2 border-finance-green"></div>
+            <svg width="16" height="2" className="overflow-visible">
+              <line x1="0" y1="1" x2="16" y2="1" stroke="hsl(var(--finance-green))" strokeWidth="2" strokeDasharray="4 4" />
+            </svg>
             <span className="text-gray-600 dark:text-gray-400">2-Year Forecast</span>
           </div>
           <div className="flex items-center space-x-1 text-gray-500">
@@ -113,7 +118,7 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
       <div>
         <ChartContainer config={chartConfig} className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={allData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis 
                 dataKey="year" 
@@ -128,9 +133,9 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value, name, props) => [
+                    formatter={(value, name) => [
                       formatCurrency(value as number),
-                      props.payload?.isForecast ? "Forecast Balance" : "Balance"
+                      name === "historical" ? "Balance" : "Forecast Balance"
                     ]}
                   />
                 }
@@ -139,8 +144,7 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               {/* Historical data line */}
               <Line 
                 type="monotone" 
-                dataKey="balance" 
-                data={historicalData}
+                dataKey="historical" 
                 stroke="hsl(var(--finance-green))" 
                 strokeWidth={3}
                 dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 2, r: 4 }}
@@ -149,34 +153,20 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               />
               
               {/* Forecast data line */}
-              {forecastData.length > 0 && (
-                <Line 
-                  type="monotone" 
-                  dataKey="balance" 
-                  data={[historicalData[historicalData.length - 1], ...forecastData]}
-                  stroke="hsl(var(--finance-green))" 
-                  strokeWidth={2}
-                  strokeDasharray="8 8"
-                  dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 1, r: 3, opacity: 0.7 }}
-                  activeDot={{ r: 5, stroke: "hsl(var(--finance-green))", strokeWidth: 2, opacity: 0.8 }}
-                  connectNulls={false}
-                />
-              )}
-              
-              {/* Add reference line to separate historical from forecast */}
-              {forecastData.length > 0 && historicalData.length > 0 && (
-                <ReferenceLine 
-                  x={historicalData[historicalData.length - 1].year} 
-                  stroke="#94a3b8" 
-                  strokeDasharray="2 2" 
-                  strokeWidth={1}
-                />
-              )}
+              <Line 
+                type="monotone" 
+                dataKey="forecast" 
+                stroke="hsl(var(--finance-green))" 
+                strokeWidth={2}
+                strokeDasharray="8 8"
+                dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 1, r: 3, opacity: 0.7 }}
+                activeDot={{ r: 5, stroke: "hsl(var(--finance-green))", strokeWidth: 2, opacity: 0.8 }}
+                connectNulls={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
       </div>
-
     </div>
   );
 }

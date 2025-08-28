@@ -30,7 +30,7 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
       <div className="w-8 h-8 bg-finance-green rounded-full flex items-center justify-center flex-shrink-0">
         <Bot className="text-white" size={14} />
       </div>
-      <div className="space-y-3 max-w-md">
+      <div className="space-y-3 max-w-full">
         {/* Only show text bubble if we're not displaying special data visualizations */}
         {!(data && data.length > 0 && (
           (data[0]?.balance !== undefined && data[0]?.type && data[0]?.name) || // Account data

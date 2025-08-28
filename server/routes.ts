@@ -286,21 +286,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Validate dates
               if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
                 console.error('Invalid date range:', query.parameters.dateRange);
-                dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to invalid dates`);
-                responseData = await storage.getTransactions(targetAccountId, 20);
+                const limit = query.parameters.limit || 20;
+                dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, ${limit}) - fallback due to invalid dates`);
+                responseData = await storage.getTransactions(targetAccountId, limit);
               } else {
                 dbQueries.push(`getTransactionsByDateRange('${startDate.toISOString()}', '${endDate.toISOString()}', ${targetAccountId || 'undefined'})`);                
                 responseData = await storage.getTransactionsByDateRange(startDate, endDate, targetAccountId);
               }
             } catch (error) {
               console.error('Date parsing error:', error);
-              dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20) - fallback due to date parsing error`);
-              responseData = await storage.getTransactions(targetAccountId, 20);
+              const limit = query.parameters.limit || 20;
+              dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, ${limit}) - fallback due to date parsing error`);
+              responseData = await storage.getTransactions(targetAccountId, limit);
             }
           } else {
+            // Use the parsed limit or default to 20
+            const limit = query.parameters.limit || 20;
+            
             // If we have a specific account, query that account; otherwise get recent transactions  
-            dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, 20)`);
-            responseData = await storage.getTransactions(targetAccountId, 20);
+            dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, ${limit})`);
+            responseData = await storage.getTransactions(targetAccountId, limit);
           }
           
           // Filter by transaction direction if specified

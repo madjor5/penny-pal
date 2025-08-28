@@ -21,6 +21,7 @@ export interface FinancialQuery {
     isLatest?: boolean; // For latest/last visit queries
     searchType?: 'product' | 'store'; // Whether searching for products or stores
     transactionDirection?: 'incoming' | 'outgoing' | 'all'; // Direction of money flow
+    limit?: number; // Number of transactions to return (e.g., "last 3", "first 5")
   };
   queryType: 'transactions' | 'budget' | 'goals' | 'analysis' | 'general' | 'semantic_search' | 'latest_receipt';
 }
@@ -42,8 +43,14 @@ export async function parseFinancialQuery(userMessage: string): Promise<Financia
           
           Parse the user's message and extract:
           - intent: what they want to know
-          - parameters: relevant filters like category, date range, account type, account name, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection
+          - parameters: relevant filters like category, date range, account type, account name, amounts, timeframe, searchTerm, isLatest, searchType, transactionDirection, limit
           - queryType: one of 'transactions', 'budget', 'goals', 'analysis', 'general', 'semantic_search', 'latest_receipt'
+          
+          For the limit parameter, extract numbers when users specify:
+          - "last 3 transactions" -> limit: 3
+          - "show me 5 transactions" -> limit: 5
+          - "first 10 from my account" -> limit: 10
+          - If no specific number is mentioned, don't set limit (use default)
           
           For transactionDirection parameter, determine if the user is asking about:
           - 'incoming': income, deposits, received money (positive amounts)

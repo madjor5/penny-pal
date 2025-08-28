@@ -1,12 +1,13 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceLine } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { TrendingUp, TrendingDown, DollarSign, BarChart as BarChartIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Eye } from "lucide-react";
 
 interface YearlyGrowthData {
   year: string;
   balance: number;
   change: number;
   changePercentage: number;
+  isForecast?: boolean;
 }
 
 interface YearlyGrowthChartProps {
@@ -52,20 +53,29 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
     }).format(amount);
   };
 
-  // Get the latest year's data for summary
-  const latestYear = data[data.length - 1];
+  // Separate historical and forecast data
+  const historicalData = data.filter(item => !item.isForecast);
+  const forecastData = data.filter(item => item.isForecast);
+  
+  // Get the latest historical year's data for summary
+  const latestYear = historicalData[historicalData.length - 1];
   const currentBalance = latestYear?.balance || 0;
   const lastChange = latestYear?.change || 0;
   const lastChangePercentage = latestYear?.changePercentage || 0;
+  
+  // If we have forecast data, include transition point
+  const allData = historicalData.length > 0 && forecastData.length > 0 
+    ? [...historicalData, ...forecastData]
+    : data;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700" data-testid="yearly-growth-chart">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
-          <BarChartIcon className="text-finance-green" size={20} />
+          <TrendingUp className="text-finance-green" size={20} />
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Yearly Growth{accountName ? ` - ${accountName}` : ""}
+            Account Balance Over Time{accountName ? ` - ${accountName}` : ""}
           </h3>
         </div>
         <div className="text-right">
@@ -81,12 +91,29 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
         </div>
       </div>
 
-      {/* Balance Line Chart */}
-      <div className="mb-8">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Account Balance Over Time</h4>
-        <ChartContainer config={chartConfig} className="h-64">
+      {/* Legend */}
+      {forecastData.length > 0 && (
+        <div className="flex items-center space-x-4 mb-4 text-sm">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-0.5 bg-finance-green"></div>
+            <span className="text-gray-600 dark:text-gray-400">Historical</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-0.5 bg-finance-green border-dashed border-t-2 border-finance-green"></div>
+            <span className="text-gray-600 dark:text-gray-400">2-Year Forecast</span>
+          </div>
+          <div className="flex items-center space-x-1 text-gray-500">
+            <Eye size={12} />
+            <span className="text-xs">Based on recent trends</span>
+          </div>
+        </div>
+      )}
+
+      {/* Balance Line Chart with Forecast */}
+      <div>
+        <ChartContainer config={chartConfig} className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={allData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis 
                 dataKey="year" 
@@ -101,103 +128,55 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value, name) => [
+                    formatter={(value, name, props) => [
                       formatCurrency(value as number),
-                      name === "balance" ? "Balance" : "Change"
+                      props.payload?.isForecast ? "Forecast Balance" : "Balance"
                     ]}
                   />
                 }
               />
+              
+              {/* Historical data line */}
               <Line 
                 type="monotone" 
                 dataKey="balance" 
+                data={historicalData}
                 stroke="hsl(var(--finance-green))" 
                 strokeWidth={3}
                 dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6, stroke: "hsl(var(--finance-green))", strokeWidth: 2 }}
+                connectNulls={false}
               />
+              
+              {/* Forecast data line */}
+              {forecastData.length > 0 && (
+                <Line 
+                  type="monotone" 
+                  dataKey="balance" 
+                  data={[historicalData[historicalData.length - 1], ...forecastData]}
+                  stroke="hsl(var(--finance-green))" 
+                  strokeWidth={2}
+                  strokeDasharray="8 8"
+                  dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 1, r: 3, opacity: 0.7 }}
+                  activeDot={{ r: 5, stroke: "hsl(var(--finance-green))", strokeWidth: 2, opacity: 0.8 }}
+                  connectNulls={false}
+                />
+              )}
+              
+              {/* Add reference line to separate historical from forecast */}
+              {forecastData.length > 0 && historicalData.length > 0 && (
+                <ReferenceLine 
+                  x={historicalData[historicalData.length - 1].year} 
+                  stroke="#94a3b8" 
+                  strokeDasharray="2 2" 
+                  strokeWidth={1}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
       </div>
 
-      {/* Change Bar Chart */}
-      <div>
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Year-over-Year Change</h4>
-        <ChartContainer config={chartConfig} className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.slice(1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-              <XAxis 
-                dataKey="year" 
-                className="text-gray-600 dark:text-gray-400"
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis 
-                className="text-gray-600 dark:text-gray-400"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => formatCurrency(value, true)}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    formatter={(value, name) => [
-                      formatCurrency(value as number),
-                      "Change"
-                    ]}
-                  />
-                }
-              />
-              <Bar 
-                dataKey="change"
-                fill="#10b981"
-                radius={[2, 2, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
-
-      {/* Growth Summary */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <DollarSign size={16} className="text-blue-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total Years</span>
-          </div>
-          <div className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1" data-testid="text-total-years">
-            {data.length}
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <TrendingUp size={16} className="text-green-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Avg Growth</span>
-          </div>
-          <div className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1" data-testid="text-avg-growth">
-            {data.length > 1 
-              ? `${((data[data.length - 1].balance - data[0].balance) / (data.length - 1) / Math.abs(data[0].balance) * 100).toFixed(1)}%`
-              : "N/A"
-            }
-          </div>
-        </div>
-        
-        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <BarChartIcon size={16} className="text-purple-600" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Best Year</span>
-          </div>
-          <div className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1" data-testid="text-best-year">
-            {data.length > 1 
-              ? data.slice(1).reduce((best, current) => 
-                  current.changePercentage > best.changePercentage ? current : best
-                ).year
-              : "N/A"
-            }
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

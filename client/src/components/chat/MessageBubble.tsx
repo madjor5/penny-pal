@@ -31,8 +31,11 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
         <Bot className="text-white" size={14} />
       </div>
       <div className="space-y-3 max-w-md">
-        {/* Only show text bubble if we're not displaying account data */}
-        {!(data && data.length > 0 && data[0]?.balance !== undefined && data[0]?.type && data[0]?.name) && (
+        {/* Only show text bubble if we're not displaying special data visualizations */}
+        {!(data && data.length > 0 && (
+          (data[0]?.balance !== undefined && data[0]?.type && data[0]?.name) || // Account data
+          (data[0]?.year && data[0]?.balance !== undefined && data[0]?.change !== undefined) // Growth data
+        )) && (
           <div className="bg-ai-bubble rounded-2xl rounded-tl-md px-4 py-3 shadow-sm border border-gray-100">
             {(() => {
               // Check if message contains a receipt code block

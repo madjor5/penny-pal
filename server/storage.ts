@@ -400,7 +400,7 @@ export class DatabaseStorage implements IStorage {
     return results.map(r => ({ month: r.month as string, total: r.total || '0' }));
   }
 
-  async getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number }[]> {
+  async getYearlyGrowthData(accountId: string): Promise<{ year: string; balance: number; change: number; changePercentage: number; isForecast?: boolean }[]> {
     // Get all transactions for this account ordered by date
     const accountTransactions = await db
       .select()
@@ -447,8 +447,31 @@ export class DatabaseStorage implements IStorage {
         year,
         balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
         change: Math.round(change * 100) / 100,
-        changePercentage: Math.round(changePercentage * 100) / 100
+        changePercentage: Math.round(changePercentage * 100) / 100,
+        isForecast: false
       });
+    }
+
+    // Add 2-year forecasting based on trends
+    if (results.length >= 2) {
+      const lastTwoYears = results.slice(-2);
+      const avgYearlyChange = lastTwoYears.reduce((sum, item) => sum + item.change, 0) / lastTwoYears.length;
+      const lastBalance = results[results.length - 1].balance;
+      const lastYear = parseInt(results[results.length - 1].year);
+
+      // Add 2 forecast years
+      for (let i = 1; i <= 2; i++) {
+        const forecastYear = (lastYear + i).toString();
+        const forecastBalance = lastBalance + (avgYearlyChange * i);
+        
+        results.push({
+          year: forecastYear,
+          balance: Math.round(forecastBalance * 100) / 100,
+          change: Math.round(avgYearlyChange * 100) / 100,
+          changePercentage: lastBalance !== 0 ? Math.round((avgYearlyChange / Math.abs(lastBalance)) * 100 * 100) / 100 : 0,
+          isForecast: true
+        });
+      }
     }
 
     return results;

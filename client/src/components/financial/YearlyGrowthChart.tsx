@@ -63,13 +63,22 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
   const lastChange = latestYear?.change || 0;
   const lastChangePercentage = latestYear?.changePercentage || 0;
   
-  // Prepare chart data with both historical and forecast values
+  // Prepare chart data - include transition point for smooth connection
   const chartData = data.map(item => ({
     year: item.year,
-    historical: !item.isForecast ? item.balance : null,
-    forecast: item.isForecast ? item.balance : null,
+    balance: item.balance,
     isForecast: item.isForecast || false
   }));
+
+  // Add connection point for forecast (last historical point repeated as first forecast point)
+  if (forecastData.length > 0 && historicalData.length > 0) {
+    const lastHistorical = historicalData[historicalData.length - 1];
+    chartData.splice(historicalData.length, 0, {
+      year: lastHistorical.year,
+      balance: lastHistorical.balance,
+      isForecast: true
+    });
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 w-full" data-testid="yearly-growth-chart">
@@ -133,35 +142,23 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
               <ChartTooltip
                 content={
                   <ChartTooltipContent
-                    formatter={(value, name) => [
+                    formatter={(value, name, props) => [
                       formatCurrency(value as number),
-                      name === "historical" ? "Balance" : "Forecast Balance"
+                      props.payload?.isForecast ? "Forecast Balance" : "Balance"
                     ]}
                   />
                 }
               />
               
-              {/* Historical data line */}
+              {/* Main line for all data */}
               <Line 
                 type="monotone" 
-                dataKey="historical" 
-                stroke="hsl(var(--finance-green))" 
+                dataKey="balance" 
+                stroke="#10b981"
                 strokeWidth={3}
-                dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, stroke: "hsl(var(--finance-green))", strokeWidth: 2 }}
-                connectNulls={false}
-              />
-              
-              {/* Forecast data line */}
-              <Line 
-                type="monotone" 
-                dataKey="forecast" 
-                stroke="hsl(var(--finance-green))" 
-                strokeWidth={2}
-                strokeDasharray="8 8"
-                dot={{ fill: "hsl(var(--finance-green))", strokeWidth: 1, r: 3, opacity: 0.7 }}
-                activeDot={{ r: 5, stroke: "hsl(var(--finance-green))", strokeWidth: 2, opacity: 0.8 }}
-                connectNulls={false}
+                dot={false}
+                activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2, fill: "#10b981" }}
+                connectNulls={true}
               />
             </LineChart>
           </ResponsiveContainer>

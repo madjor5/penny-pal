@@ -443,12 +443,16 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
+      // Since we're in August 2025, treat 2025 and later as forecast since the year isn't complete
+      const currentYear = new Date().getFullYear(); // 2025
+      const isForecastYear = parseInt(year) >= currentYear;
+      
       results.push({
         year,
         balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
         change: Math.round(change * 100) / 100,
         changePercentage: Math.round(changePercentage * 100) / 100,
-        isForecast: false
+        isForecast: isForecastYear
       });
     }
 

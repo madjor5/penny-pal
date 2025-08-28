@@ -454,19 +454,19 @@ export class DatabaseStorage implements IStorage {
       
       // If this is the current year (2025), project the full year value
       if (parseInt(year) === currentYear && isForecastYear) {
-        // Estimate full year based on partial year progress (8/12 months completed)
-        const yearProgress = currentMonth / 12;
-        const projectedFullYearBalance = balance / yearProgress;
-        
-        adjustedBalance = projectedFullYearBalance;
-        
-        // Recalculate change based on projected full year
+        // Calculate: ((current balance - 2024 balance) / month number) * 12
         if (i > 0) {
           const previousBalance = yearlyData.get(years[i - 1]) || 0;
-          adjustedChange = projectedFullYearBalance - previousBalance;
+          const growthSoFar = balance - previousBalance;
+          const monthlyGrowthRate = growthSoFar / currentMonth;
+          const projectedFullYearGrowth = monthlyGrowthRate * 12;
+          const projectedFullYearBalance = previousBalance + projectedFullYearGrowth;
+          
+          adjustedBalance = projectedFullYearBalance;
+          adjustedChange = projectedFullYearGrowth;
           
           if (previousBalance !== 0) {
-            adjustedChangePercentage = (adjustedChange / Math.abs(previousBalance)) * 100;
+            adjustedChangePercentage = (projectedFullYearGrowth / Math.abs(previousBalance)) * 100;
           }
         }
       }

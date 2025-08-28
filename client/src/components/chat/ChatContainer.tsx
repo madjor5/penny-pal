@@ -9,9 +9,10 @@ import type { JSX } from "react";
 interface ChatContainerProps {
   isProcessing?: boolean;
   debugMode?: boolean;
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
-export default function ChatContainer({ isProcessing = false, debugMode = false }: ChatContainerProps) {
+export default function ChatContainer({ isProcessing = false, debugMode = false, onSuggestionClick }: ChatContainerProps) {
   const { data: accounts, isLoading: accountsLoading } = useQuery({
     queryKey: ['/api/accounts'],
   });
@@ -58,6 +59,8 @@ export default function ChatContainer({ isProcessing = false, debugMode = false 
                   isUser={msg.isUser}
                   data={msg.queryData?.data}
                   debug={debugMode ? msg.queryData?.debug : undefined}
+                  suggestions={!msg.isUser ? msg.queryData?.suggestions : undefined}
+                  onSuggestionClick={onSuggestionClick}
                 />
               ));
             }

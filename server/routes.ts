@@ -306,6 +306,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // If we have a specific account, query that account; otherwise get recent transactions  
             dbQueries.push(`getTransactions(${targetAccountId || 'undefined'}, ${limit})`);
             responseData = await storage.getTransactions(targetAccountId, limit);
+            
+            // Check if there are more transactions available for "view more" functionality
+            if (query.parameters.limit && query.parameters.limit < 50) {
+              const checkLimit = Math.min(query.parameters.limit + 10, 50); // Check if there are more
+              const checkData = await storage.getTransactions(targetAccountId, checkLimit);
+              if (checkData.length > query.parameters.limit) {
+                // Store info about more transactions being available
+                contextData = { 
+                  hasMore: true, 
+                  totalAvailable: checkData.length,
+                  currentLimit: query.parameters.limit,
+                  accountId: targetAccountId
+                };
+              }
+            }
           }
           
           // Filter by transaction direction if specified
@@ -453,6 +468,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (totalIncoming > 0) parts.push(`received $${totalIncoming.toFixed(2)}`);
             if (totalOutgoing > 0) parts.push(`spent $${totalOutgoing.toFixed(2)}`);
             responseMessage = `Here are your recent transactions. You ${parts.join(' and ')} across ${responseData.length} transactions.`;
+            
+            // Add "view more" suggestion if there are more transactions available
+            if (contextData?.hasMore) {
+              const accountName = accountSearchResult?.matches?.[0]?.name || 'your account';
+              const nextLimit = Math.min(contextData.currentLimit + 10, 50);
+              suggestions = [
+                `Show ${nextLimit} transactions from ${accountName}`,
+                "View all recent transactions", 
+                "Analyze spending patterns"
+              ];
+            }
           }
           break;
 

@@ -9,9 +9,11 @@ interface MessageBubbleProps {
   isWelcome?: boolean;
   data?: any;
   debug?: any;
+  suggestions?: string[];
+  onSuggestionClick?: (suggestion: string) => void;
 }
 
-export default function MessageBubble({ message, isUser, isWelcome = false, data, debug }: MessageBubbleProps) {
+export default function MessageBubble({ message, isUser, isWelcome = false, data, debug, suggestions, onSuggestionClick }: MessageBubbleProps) {
   if (isUser) {
     return (
       <div className="flex justify-end">
@@ -153,6 +155,25 @@ export default function MessageBubble({ message, isUser, isWelcome = false, data
                 )}
               </div>
             </details>
+          </div>
+        )}
+
+        {/* Render suggestions */}
+        {suggestions && suggestions.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-gray-500">Suggestions:</p>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-700 transition-colors border border-gray-200 hover:border-gray-300"
+                  onClick={() => onSuggestionClick?.(suggestion)}
+                  data-testid={`button-suggestion-${index}`}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

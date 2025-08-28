@@ -23,10 +23,19 @@ export default function Home() {
     setIsQuickActionsOpen(false);
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    setMessage(suggestion);
+  };
+
   return (
     <div className="bg-gray-50 font-inter text-gray-900 min-h-screen flex flex-col">
       <ChatHeader data-testid="chat-header" />
-      <ChatContainer isProcessing={isProcessing} debugMode={debugMode} data-testid="chat-container" />
+      <ChatContainer 
+        isProcessing={isProcessing} 
+        debugMode={debugMode} 
+        onSuggestionClick={handleSuggestionClick}
+        data-testid="chat-container" 
+      />
       
       <QuickActions 
         isOpen={isQuickActionsOpen}

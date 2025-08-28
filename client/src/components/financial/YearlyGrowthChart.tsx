@@ -63,22 +63,26 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
   const lastChange = latestYear?.change || 0;
   const lastChangePercentage = latestYear?.changePercentage || 0;
   
-  // Prepare chart data - include transition point for smooth connection
+  // Prepare chart data without duplicates
   const chartData = data.map(item => ({
     year: item.year,
     balance: item.balance,
     isForecast: item.isForecast || false
   }));
 
-  // Add connection point for forecast (last historical point repeated as first forecast point)
-  if (forecastData.length > 0 && historicalData.length > 0) {
-    const lastHistorical = historicalData[historicalData.length - 1];
-    chartData.splice(historicalData.length, 0, {
-      year: lastHistorical.year,
-      balance: lastHistorical.balance,
-      isForecast: true
-    });
-  }
+  // Create historical and forecast datasets for proper line styling
+  const historicalChartData = historicalData.map(item => ({
+    year: item.year,
+    balance: item.balance
+  }));
+
+  // For forecast, include the last historical point to connect lines smoothly
+  const forecastChartData = forecastData.length > 0 && historicalData.length > 0 
+    ? [historicalData[historicalData.length - 1], ...forecastData].map(item => ({
+        year: item.year,
+        balance: item.balance
+      }))
+    : [];
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700 w-full" data-testid="yearly-growth-chart">
@@ -150,16 +154,32 @@ export default function YearlyGrowthChart({ data, accountName }: YearlyGrowthCha
                 }
               />
               
-              {/* Main line for all data */}
+              {/* Historical data line (solid) */}
               <Line 
                 type="monotone" 
                 dataKey="balance" 
+                data={historicalChartData}
                 stroke="#10b981"
                 strokeWidth={3}
-                dot={false}
+                dot={{ fill: "#10b981", strokeWidth: 2, r: 4 }}
                 activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2, fill: "#10b981" }}
-                connectNulls={true}
+                connectNulls={false}
               />
+              
+              {/* Forecast data line (dashed) */}
+              {forecastChartData.length > 0 && (
+                <Line 
+                  type="monotone" 
+                  dataKey="balance" 
+                  data={forecastChartData}
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  strokeDasharray="8 8"
+                  dot={{ fill: "#10b981", strokeWidth: 1, r: 3 }}
+                  activeDot={{ r: 5, stroke: "#10b981", strokeWidth: 2, fill: "#10b981" }}
+                  connectNulls={false}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
